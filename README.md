@@ -6,6 +6,8 @@
 
 *The automated QA pipeline that makes every WordPress plugin ship like it was built by a senior team — even when it wasn't.*
 
+**👉 [Start Here: Getting Started Guide](GETTING-STARTED.md) — 15 min to first run**
+
 <br />
 
 ![PHP](https://img.shields.io/badge/PHP-7.4%20→%208.3-777BB4?style=for-the-badge&logo=php&logoColor=white)
@@ -25,6 +27,26 @@ Covers **Elementor Addons · Gutenberg Blocks · SEO Plugins · WooCommerce Exte
 [Quick Start](#quick-start) · [What It Checks](#what-it-checks) · [Skills Reference](SKILLS.md) · [Common WP Mistakes](docs/common-wp-mistakes.md)
 
 </div>
+
+---
+
+## The Pitch — What This Actually Is
+
+**PlugOrbit is a QA operating system for WordPress plugins.** One command and you get:
+
+- ✅ Real WordPress + real MySQL running in Docker (fully scripted, no GUI clicks)
+- ✅ PHP lint + WordPress Coding Standards + VIP + PHPStan (catches bugs before they run)
+- ✅ Playwright E2E tests + visual regression + a11y (catches bugs before users see them)
+- ✅ Lighthouse + custom perf harness for Elementor/Gutenberg editor (catches slow code)
+- ✅ DB query profiling with Query Monitor + `performance_schema` (catches N+1s)
+- ✅ Competitor analysis from wordpress.org (catches when you fall behind)
+- ✅ Claude Code skill integration — 30+ `/slash` commands for AI-assisted audit (catches what humans miss)
+- ✅ Mass parallel mode — test 5 plugins at once on your own Mac, CPU-throttled
+- ✅ Zero POSIMYTH-specific hardcoding — works for any WP plugin type (Elementor, Gutenberg, SEO, Woo, theme)
+
+**The outcome**: plugins ship with the discipline of a senior team, even when written by a single developer.
+
+Built and maintained by [@adityaarsharma](https://github.com/adityaarsharma). Works with any Claude Code-enabled machine.
 
 ---
 
@@ -618,10 +640,14 @@ Summary: 6 passed · 1 warning · 0 failed
 
 ## Docs
 
-- [wp-env / wp-now Setup](docs/wp-env-setup.md) — fully automated WP test sites, Docker-based
-- [Database Profiling Guide](docs/database-profiling.md) — Query Monitor, N+1 fixes, slow log
+- **[GETTING-STARTED.md](GETTING-STARTED.md) — 🌟 the one you should read first**
+- [What is Playwright](docs/what-is-playwright.md) — beginner-friendly primer on browser automation
+- [Writing Tests Guide](docs/writing-tests.md) — practical test-authoring recipes for every plugin type
+- [Real-World QA Cases](docs/real-world-qa.md) — 18 cases most checklists miss (uninstall, upgrade, multisite, GDPR, REST, etc.)
+- [wp-env Setup](docs/wp-env-setup.md) — fully automated WP test sites, Docker-based
+- [Database Profiling Guide](docs/database-profiling.md) — Query Monitor, N+1 fixes, `performance_schema`
 - [Deep Performance Guide](docs/deep-performance.md) — backend hooks, frontend bundle, Elementor editor perf
-- [Common WordPress Mistakes](docs/common-wp-mistakes.md) — what this pipeline catches automatically + how to fix them
+- [Common WordPress Mistakes](docs/common-wp-mistakes.md) — what this pipeline catches automatically
 - [Power Tools Guide](docs/power-tools.md) — Claude Mem, Rector, Psalm, WPScan, and more
 - [Skill Commands Reference](SKILLS.md) — every Claude Code skill, with Antigravity attribution
 - [Playwright Templates](tests/playwright/templates/README.md) — generic templates per plugin type

@@ -1,14 +1,16 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 
-const BASE_URL = process.env.WP_TEST_URL || 'http://localhost:8888';
+const BASE_URL = process.env.WP_TEST_URL || 'http://localhost:8881';
 
 module.exports = defineConfig({
   testDir: './',
   timeout: 120_000,
   expect: { timeout: 30_000 },
-  fullyParallel: false, // keep false for WP Playground (port conflicts)
-  workers: process.env.CI ? 1 : 2,
+  // wp-env has no port conflicts within a single site — run tests in parallel
+  fullyParallel: true,
+  // Scale to half the CPU cores by default; override with PLAYWRIGHT_WORKERS=4
+  workers: process.env.PLAYWRIGHT_WORKERS || (process.env.CI ? 1 : '50%'),
   retries: process.env.CI ? 2 : 0,
 
   reporter: [

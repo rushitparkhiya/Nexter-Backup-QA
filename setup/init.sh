@@ -101,15 +101,55 @@ if [[ "$HAS_PRO_INPUT" =~ ^[Yy] ]]; then
 fi
 echo ""
 
+# ── Multisite ────────────────────────────────────────────────────────────────
+echo -e "${YELLOW}Q8. Should we also test against WordPress multisite? (y/N)${NC}"
+read -r -p "  Multisite? [N]: " MULTISITE_INPUT
+MULTISITE="false"
+[[ "$MULTISITE_INPUT" =~ ^[Yy] ]] && MULTISITE="true"
+echo ""
+
+# ── Companion Plugins (conflict testing) ─────────────────────────────────────
+echo -e "${YELLOW}Q9. Which popular plugins should co-activate during tests? (comma-separated slugs)${NC}"
+echo "   Suggested based on your plugin type:"
+case $PLUGIN_TYPE in
+  elementor-addon)   CONFLICT_HINT="elementor,woocommerce" ;;
+  woocommerce-extension) CONFLICT_HINT="woocommerce" ;;
+  gutenberg-blocks)  CONFLICT_HINT="classic-editor,woocommerce" ;;
+  seo-plugin)        CONFLICT_HINT="woocommerce" ;;
+  theme)             CONFLICT_HINT="elementor,woocommerce,wordpress-seo" ;;
+  *)                 CONFLICT_HINT="" ;;
+esac
+[ -n "$CONFLICT_HINT" ] && echo -e "   Default: ${CYAN}$CONFLICT_HINT${NC}"
+read -r -p "  Companions [$CONFLICT_HINT]: " COMPANIONS_INPUT
+COMPANIONS="${COMPANIONS_INPUT:-$CONFLICT_HINT}"
+echo ""
+
+# ── Upgrade Testing ──────────────────────────────────────────────────────────
+echo -e "${YELLOW}Q10. Test upgrade path from a previous version? (y/N)${NC}"
+echo "   We'll install old version, populate data, then upgrade to new and verify."
+read -r -p "  Test upgrade? [N]: " UPGRADE_INPUT
+UPGRADE_TEST="false"
+PREV_VERSION=""
+if [[ "$UPGRADE_INPUT" =~ ^[Yy] ]]; then
+  UPGRADE_TEST="true"
+  read -r -p "  Previous version to upgrade FROM (e.g. 1.5.0): " PREV_VERSION
+fi
+echo ""
+
+# ── Staging URL ──────────────────────────────────────────────────────────────
+echo -e "${YELLOW}Q11. Staging URL for pre-release smoke tests? (optional)${NC}"
+read -r -p "  Staging URL [skip]: " STAGING_URL
+echo ""
+
 # ── Team Roles ────────────────────────────────────────────────────────────────
-echo -e "${YELLOW}Q8. Who will use this pipeline? (select all that apply)${NC}"
+echo -e "${YELLOW}Q12. Who will use this pipeline? (select all that apply)${NC}"
 echo "   d) Developers  q) QA testers  p) Product managers  a) All"
 read -r -p "  Roles [a]: " ROLES_INPUT
 ROLES="${ROLES_INPUT:-a}"
 echo ""
 
 # ── Notification ─────────────────────────────────────────────────────────────
-echo -e "${YELLOW}Q9. Slack webhook URL for test result notifications? (optional)${NC}"
+echo -e "${YELLOW}Q13. Slack webhook URL for test result notifications? (optional)${NC}"
 read -r -p "  Slack webhook URL [skip]: " SLACK_WEBHOOK
 echo ""
 
@@ -128,7 +168,15 @@ cat > qa.config.json << EOF
     "testUrl": "$WP_URL",
     "wpEnvPort": $WP_PORT,
     "adminUser": "admin",
-    "adminPass": "password"
+    "adminPass": "password",
+    "multisite": $MULTISITE,
+    "stagingUrl": "$STAGING_URL"
+  },
+  "companions": [$(echo "$COMPANIONS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sed 's/.*/    "&"/' | paste -sd ',' -)
+  ],
+  "upgrade": {
+    "test": $UPGRADE_TEST,
+    "fromVersion": "$PREV_VERSION"
   },
   "competitors": [$(echo "$COMPETITORS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sed 's/.*/    "&"/' | paste -sd ',' -)
   ],
