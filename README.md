@@ -439,35 +439,121 @@ Every failure gets a screenshot + video + trace automatically.
 
 ### What Each Test File Checks
 
-**`tpa/core.spec.js`** — The Plus Addons core:
-- Admin settings page loads without PHP fatal errors
-- Elementor editor loads with TPA panel visible
-- TPA widgets appear when searching in Elementor
-- Frontend page has zero JS console errors from TPA code
-- No broken images on test pages
+**`tests/playwright/templates/seo-plugin/core.spec.js`** — Template for plugin comparison flows:
+- Discovery tests — print all nav links for both plugins (run first)
+- PAIR 1–N — side-by-side screenshots of matching features
+- Frontend check — OG tags, schema, canonical on the homepage
+
+**`{plugin}/core.spec.js`** — Plugin admin panel:
+- Admin page loads without PHP fatal errors
+- No broken images, no JS console errors
 - Page loads under 4 seconds
 - axe-core WCAG 2.1 AA accessibility scan
-- Visual regression screenshots (homepage + test page)
+- Visual regression screenshots
 
-**`tpa/responsive.spec.js`** — Responsive quality:
+**`{plugin}/responsive.spec.js`** — Responsive quality:
 - No horizontal scroll at 375px, 768px, 1440px
-- Mobile hamburger menu opens and shows navigation
 - All interactive elements ≥ 44×44px (touch target size)
 - Per-viewport visual snapshots
 
-**`nexterwp/core.spec.js`** — NexterWP theme + blocks + extension:
-- Theme active, no critical admin notices
-- WordPress Customizer loads cleanly
-- Nexter Blocks visible in Gutenberg block inserter
-- Nexter Blocks + Extension admin pages load without errors
-- Homepage zero JS errors from Nexter code
-- Header builder and footer render
-- Single post template renders correctly
-- No horizontal overflow at any viewport
-- Zero CSS/JS 404 responses
-- Lighthouse budget: load time < 4 seconds
-- WCAG 2.1 AA accessibility scan
-- Visual regression snapshots
+---
+
+## UAT Flow Comparison (Plugin A vs Plugin B)
+
+Orbit includes a **side-by-side UAT report system** for comparing two plugins on the same feature set. Produces an HTML report with paired screenshots, videos, PM analysis, RICE backlog, and a feature comparison table.
+
+### Quick start
+
+```bash
+# Run flow tests + generate report + open in browser
+npm run uat
+
+# Run flow tests + generate report (no open — use on CI)
+npm run uat:ci
+```
+
+### How the pairing system works
+
+Screenshots and videos are named using the **PAIR-NN-slug-a/b convention**:
+
+```
+pair-01-dashboard-a.png    ← Plugin A dashboard
+pair-01-dashboard-b.png    ← Plugin B dashboard
+pair-02-meta-a.png         ← Plugin A meta templates
+pair-02-meta-b.png         ← Plugin B meta templates
+```
+
+The report pairs files by **slug** (not by index). This means Social always pairs with Social, Sitemaps always pairs with Sitemaps — regardless of how many tests each plugin has or what order they run in. This is enforced by the `snapPair()` helper in `tests/playwright/helpers.js`.
+
+### Writing a flow spec
+
+Copy `tests/playwright/templates/seo-plugin/core.spec.js` for a new plugin pair.
+
+**Step 1 — Discovery** (run this first for each plugin):
+```bash
+npx playwright test "Discovery | Plugin A"
+# Prints all nav links to console — copy the exact URLs
+```
+
+**Step 2 — Use `snapPair()`, never `page.screenshot()`:**
+```js
+await snapPair(page, 1, 'dashboard', 'a', SNAP);           // pair-01-dashboard-a.png
+await snapPair(page, 1, 'dashboard', 'a', SNAP, 'scroll'); // pair-01-dashboard-a-scroll.png
+```
+
+**Step 3 — Test title format** (required for video auto-renaming):
+```
+"PAIR-1 | dashboard | a | Plugin A dashboard overview"
+```
+
+### Generating the HTML report
+
+```bash
+python3 scripts/generate-uat-report.py \
+  --title  "Plugin A vs Plugin B — v2.1" \
+  --label-a "Plugin A" --label-b "Plugin B" \
+  --snaps  reports/screenshots/flows-compare \
+  --videos reports/videos \
+  --out    reports/uat-report.html
+```
+
+**Adding PM analysis, RICE backlog, and feature table:**
+
+Pass a `--flow-data` JSON file to add per-flow PM analysis, RICE scores, and a feature comparison table. Without it, the report shows only screenshots and videos.
+
+```bash
+python3 scripts/generate-uat-report.py \
+  --flow-data reports/flow-data/my-plugin-vs-competitor.json \
+  --out reports/uat-report.html
+```
+
+The JSON file structure:
+
+```json
+{
+  "FLOW_DATA": {
+    "1": {
+      "slug": "dashboard",
+      "title": "Dashboard",
+      "verdict": "🔴 Needs Redesign",
+      "a_summary": "...",
+      "b_summary": "...",
+      "pm_analysis": "<p>...</p>",
+      "wins": ["..."],
+      "gaps": ["..."],
+      "actions": ["..."]
+    }
+  },
+  "RICE": [
+    { "r": 1, "n": "Fix description", "s": 54000, "reach": 18000,
+      "imp": "MASSIVE", "eff": "XS", "t": "qw", "q": 1, "note": "..." }
+  ],
+  "FEATURES": [
+    ["Feature name", "Plugin A description", "Plugin B description", "a|b|none"]
+  ],
+  "IA_RECS": "<div>...optional HTML for IA section...</div>"
+}
+```
 
 ---
 
