@@ -63,7 +63,7 @@ while IFS= read -r line; do
     WIDGET=$(echo "$line" | grep -oP '(?<=[Aa]dded? )[A-Za-z\s]+(?= (widget|block))' | head -1)
     echo -e "${GREEN}[NEW FEATURE]${NC} $line"
     echo "  → Test: Create a test page with the $WIDGET widget → verify it renders on frontend"
-    echo "  → Test: Open Elementor editor → search for '$WIDGET' → verify it appears in panel"
+    echo "  → Test: Open page builder editor → search for '$WIDGET' → verify it appears in panel"
     echo "  → Add: tests/playwright/tpa/${WIDGET// /-}.spec.js"
     echo ""
   fi
@@ -105,10 +105,10 @@ while IFS= read -r line; do
     echo ""
   fi
 
-  # Elementor-specific
-  if echo "$line_lower" | grep -qE "elementor|editor|widget panel"; then
-    echo -e "${GREEN}[ELEMENTOR]${NC} $line"
-    echo "  → Test: Open Elementor editor → verify change works as expected"
+  # page builder-specific
+  if echo "$line_lower" | grep -qE "page builder|editor|widget panel"; then
+    echo -e "${GREEN}[page builder]${NC} $line"
+    echo "  → Test: Open page builder editor → verify change works as expected"
     echo "  → Test: Publish page with affected widget → verify frontend renders correctly"
     echo "  → Visual: Update screenshot baseline for affected widget"
     echo ""
