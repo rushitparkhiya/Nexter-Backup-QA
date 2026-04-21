@@ -22,6 +22,9 @@ function wp(cmd) {
   return execSync(`${WP_ENV_RUN} ${cmd}`, { encoding: 'utf8' }).trim();
 }
 
+// Serial — mutates site locale which is global
+test.describe.configure({ mode: 'serial' });
+
 test.describe('RTL layout compatibility', () => {
   test.skip(!ADMIN_SLUG, 'Set PLUGIN_ADMIN_SLUG to run RTL tests');
 

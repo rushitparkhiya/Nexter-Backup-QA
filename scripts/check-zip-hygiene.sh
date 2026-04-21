@@ -83,7 +83,10 @@ echo -e "${CYAN}── Supply Chain ──${NC}"
 # 2a. composer audit
 if [ -f "$PLUGIN_PATH/composer.lock" ] && command -v composer &>/dev/null; then
   AUDIT=$(cd "$PLUGIN_PATH" && composer audit --no-ansi --format=plain 2>&1 || true)
-  VULN_COUNT=$(echo "$AUDIT" | grep -cE "(CVE-|security advisories)" || echo 0)
+  VULN_COUNT=$(echo "$AUDIT" | grep -cE "(CVE-|security advisories)" 2>/dev/null || true)
+  VULN_COUNT=${VULN_COUNT:-0}
+  VULN_COUNT=$(echo "$VULN_COUNT" | head -1 | tr -dc '0-9')
+  VULN_COUNT=${VULN_COUNT:-0}
   if [ "$VULN_COUNT" -gt 0 ]; then
     echo -e "${RED}✗ composer audit found $VULN_COUNT advisories${NC}"
     echo "$AUDIT" | head -20
@@ -100,7 +103,7 @@ fi
 # 2b. npm audit
 if [ -f "$PLUGIN_PATH/package-lock.json" ] && command -v npm &>/dev/null; then
   AUDIT_JSON=$(cd "$PLUGIN_PATH" && npm audit --json 2>/dev/null || echo '{}')
-  HIGH=$(echo "$AUDIT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); v=d.get('metadata',{}).get('vulnerabilities',{}); print(v.get('high',0)+v.get('critical',0))" 2>/dev/null || echo 0)
+  HIGH=$(echo "$AUDIT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); v=d.get('metadata',{}).get('vulnerabilities',{}); print(v.get('high',0)+v.get('critical',0))" 2>/dev/null || true)
   if [ "$HIGH" -gt 0 ]; then
     echo -e "${RED}✗ npm audit: $HIGH high/critical vulnerabilities${NC}"
     FAIL=1
@@ -115,42 +118,55 @@ echo ""
 echo -e "${CYAN}── Forbidden PHP Functions (WP.org auto-reject) ──${NC}"
 
 # 3. Forbidden functions per WP.org plugin review team 2025 standards
+# Per WP.org plugin review team + PHP security consensus:
+# - eval() is a hard fail (no legitimate use)
+# - exec/system/passthru/shell_exec/proc_open/popen = hard fail (shell exec)
+# - create_function = hard fail (removed in PHP 8.0, string eval)
+# - base64_decode/encode = WARN only (WP core uses it for REST/media/OAuth)
+# - assert() = WARN (context dependent, PHP 8.3 deprecated string form)
+# Ref: https://developer.wordpress.org/plugins/wordpress-org/detailed-plugin-guidelines/
 FORBIDDEN=(
   'eval\s*\('
-  'base64_decode\s*\('
-  'base64_encode\s*\('   # sometimes OK, but flag for review
   'exec\s*\('
   'system\s*\('
   'passthru\s*\('
   'shell_exec\s*\('
   'proc_open\s*\('
   'popen\s*\('
-  'assert\s*\('
   'create_function\s*\('
-  'eval\s*\$'
+  'extract\s*\(\s*\$_(GET|POST|REQUEST|COOKIE)'
+  'parse_str\s*\([^,]+\)\s*;'
+  'preg_replace\s*\([^,]+/e'
+)
+
+WARN_PATTERNS=(
+  'base64_decode\s*\('
+  'base64_encode\s*\('
+  'assert\s*\('
 )
 
 FF_FAIL=0
 for pattern in "${FORBIDDEN[@]}"; do
-  # -P PCRE, with word-boundary-like checks; skip vendor/
   HITS=$(grep -rEn "(^|[^a-zA-Z_])$pattern" "$PLUGIN_PATH" --include="*.php" \
     --exclude-dir=vendor --exclude-dir=node_modules --exclude-dir=tests 2>/dev/null | \
-    grep -vE "//.*$pattern|#.*$pattern|/\*.*$pattern" | head -5)
+    grep -vE "//.*$pattern|#.*$pattern|/\*.*$pattern" | head -5 || true)
   if [ -n "$HITS" ]; then
-    FUNC_NAME=$(echo "$pattern" | sed 's/[^a-z_]//g')
-    # base64_encode alone is rarely the problem — only warn
-    case "$FUNC_NAME" in
-      base64_encode)
-        echo -e "${YELLOW}⚠ base64_encode usage (sometimes OK, review context):${NC}"
-        echo "$HITS" | head -2
-        WARN=1
-        ;;
-      *)
-        echo -e "${RED}✗ Forbidden function: ${FUNC_NAME}${NC}"
-        echo "$HITS" | head -2
-        FF_FAIL=1
-        ;;
-    esac
+    FUNC_NAME=$(echo "$pattern" | sed 's/[^a-z_]//g' | head -c 30)
+    echo -e "${RED}✗ Forbidden function: ${FUNC_NAME}${NC}"
+    echo "$HITS" | head -2
+    FF_FAIL=1
+  fi
+done
+
+for pattern in "${WARN_PATTERNS[@]}"; do
+  HITS=$(grep -rEn "(^|[^a-zA-Z_])$pattern" "$PLUGIN_PATH" --include="*.php" \
+    --exclude-dir=vendor --exclude-dir=node_modules --exclude-dir=tests 2>/dev/null | \
+    grep -vE "//.*$pattern|#.*$pattern|/\*.*$pattern" | head -3 || true)
+  if [ -n "$HITS" ]; then
+    FUNC_NAME=$(echo "$pattern" | sed 's/[^a-z_]//g' | head -c 30)
+    echo -e "${YELLOW}⚠ ${FUNC_NAME} usage (review context — WP core uses this for legit cases):${NC}"
+    echo "$HITS" | head -2
+    WARN=1
   fi
 done
 

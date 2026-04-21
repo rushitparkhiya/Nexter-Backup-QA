@@ -49,6 +49,9 @@ function wp(cmd) {
   catch (e) { return ''; }
 }
 
+// Serialize — these tests mutate shared WP plugin state (activate/deactivate)
+test.describe.configure({ mode: 'serial' });
+
 test.describe('Plugin conflict matrix (top 20 popular plugins)', () => {
   test.skip(!PLUGIN_SLUG, 'Set PLUGIN_SLUG to run conflict matrix');
 
@@ -76,9 +79,11 @@ test.describe('Plugin conflict matrix (top 20 popular plugins)', () => {
       }
       wp(`plugin activate ${competitor}`);
 
-      // Snapshot debug.log line count
-      const debugLog = wp(`eval 'echo WP_CONTENT_DIR;'`) + '/debug.log';
-      const beforeLines = parseInt(wp(`eval 'echo file_exists("${debugLog}") ? count(file("${debugLog}")) : 0;'`) || '0', 10);
+      // Snapshot debug.log line count — inside container, WP_CONTENT_DIR is different from host
+      const beforeLines = parseInt(
+        wp(`eval 'echo file_exists(WP_CONTENT_DIR . "/debug.log") ? count(file(WP_CONTENT_DIR . "/debug.log")) : 0;'`) || '0',
+        10
+      );
 
       // Load admin dashboard + plugin's own page
       await page.goto('/wp-admin/');
@@ -92,7 +97,10 @@ test.describe('Plugin conflict matrix (top 20 popular plugins)', () => {
       expect(bodyText.toLowerCase(), `Fatal with ${competitor}`).not.toMatch(/fatal error|parse error|call to undefined/);
 
       // Check debug.log growth
-      const afterLines = parseInt(wp(`eval 'echo file_exists("${debugLog}") ? count(file("${debugLog}")) : 0;'`) || '0', 10);
+      const afterLines = parseInt(
+        wp(`eval 'echo file_exists(WP_CONTENT_DIR . "/debug.log") ? count(file(WP_CONTENT_DIR . "/debug.log")) : 0;'`) || '0',
+        10
+      );
       const newErrors = afterLines - beforeLines;
       expect(newErrors, `${competitor} caused ${newErrors} new debug.log entries — likely fatal or warning`).toBeLessThan(5);
 

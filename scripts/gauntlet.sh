@@ -743,16 +743,16 @@ You are performing a WordPress plugin code standards review — NOT generating n
 Read and analyze the WordPress plugin at: $PLUGIN_PATH
 Check: text domain consistency, nonce field naming, prefix collision risk, enqueue hook timing,
 sanitize-on-input + escape-on-output rule, activation hook safety, capability checks on all admin actions,
-i18n wrapping completeness, no direct DB queries without $wpdb, plugin header completeness.
+i18n wrapping completeness, no direct DB queries without \$wpdb, plugin header completeness.
 Rate each finding Critical / High / Medium / Low. List all issues with file:line references.
 Output a full markdown report with a severity summary table at the top." \
-    > "$SKILL_REPORT_DIR/wp-standards.md" 2>/dev/null &
+    > "$SKILL_REPORT_DIR/wp-standards.md" 2>"$SKILL_REPORT_DIR/wp-standards.err" &
   PID_WP=$!
 
   # 2. Security — PHP SOURCE CODE review (NOT a live attack tool)
-  # Uses /security-auditor (data flow, IDOR) + /security-scanning-security-sast (SAST patterns)
+  # Uses our custom /orbit-wp-security skill which covers 13 WP-specific vuln patterns.
   # DO NOT use /wordpress-penetration-testing here — that is an attacker tool for live sites
-  claude "/security-auditor
+  claude "/orbit-wp-security
 You are performing a static security code review of a WordPress plugin — NOT scanning a live URL.
 Read the PHP source code at: $PLUGIN_PATH
 Check these WordPress-specific vulnerability patterns:
@@ -768,7 +768,7 @@ Check these WordPress-specific vulnerability patterns:
 10. Capability checks missing on AJAX handlers
 Rate each finding Critical / High / Medium / Low with file:line references.
 Output a full markdown report with a severity summary table at the top." \
-    > "$SKILL_REPORT_DIR/security.md" 2>/dev/null &
+    > "$SKILL_REPORT_DIR/security.md" 2>"$SKILL_REPORT_DIR/security.err" &
   PID_SEC=$!
 
   # 3. WP-Specific Performance (uses /orbit-wp-performance — WP hook system, not cloud infra)
@@ -789,7 +789,7 @@ Check these WordPress-specific performance patterns:
 10. Missing object caching layer (wp_cache_get before expensive queries)
 Rate all issues by frontend and admin impact. Include before/after code examples.
 Output a full markdown report with a severity summary table at the top." \
-    > "$SKILL_REPORT_DIR/performance.md" 2>/dev/null &
+    > "$SKILL_REPORT_DIR/performance.md" 2>"$SKILL_REPORT_DIR/performance.err" &
   PID_PERF=$!
 
   # 4. WP-Specific Database Review (uses /orbit-wp-database — $wpdb patterns, not enterprise DBA)
@@ -810,7 +810,7 @@ Check these WordPress/MySQL specific patterns:
 10. No unbounded queries (posts_per_page = -1 without scale justification)
 List every fix with corrected code examples where applicable.
 Output a full markdown report with a severity summary table at the top." \
-    > "$SKILL_REPORT_DIR/database.md" 2>/dev/null &
+    > "$SKILL_REPORT_DIR/database.md" 2>"$SKILL_REPORT_DIR/database.err" &
   PID_DB=$!
 
   # 5. Accessibility (WCAG 2.2 AA)
@@ -820,7 +820,7 @@ Check: admin UI keyboard navigation, ARIA roles/labels, color contrast, focus ma
 Standard: WCAG 2.2 AA. Rate each issue Critical / High / Medium / Low.
 Also check: focus trap in modals, Tab order for settings pages, missing form labels, no aria-hidden on interactive elements.
 Output a full markdown report with a severity summary table at the top." \
-    > "$SKILL_REPORT_DIR/accessibility.md" 2>/dev/null &
+    > "$SKILL_REPORT_DIR/accessibility.md" 2>"$SKILL_REPORT_DIR/accessibility.err" &
   PID_A11Y=$!
 
   # 6. Code Quality — includes AI-generated code risk detection
@@ -832,11 +832,30 @@ wrong return types from WP API functions, missing error handling on wp_remote_ge
 silently-failing patterns (no return value check, no is_wp_error() check).
 Rate each issue High / Medium / Low. Include refactor suggestions.
 Output a full markdown report with a severity summary table at the top." \
-    > "$SKILL_REPORT_DIR/code-quality.md" 2>/dev/null &
+    > "$SKILL_REPORT_DIR/code-quality.md" 2>"$SKILL_REPORT_DIR/code-quality.err" &
   PID_CQ=$!
 
-  # Wait for all 6
-  wait $PID_WP $PID_SEC $PID_PERF $PID_DB $PID_A11Y $PID_CQ 2>/dev/null
+  # Wait for each individually + capture exit codes (wait $p1 $p2... returns last only)
+  FAILED_SKILLS=""
+  for pair in "WP:$PID_WP:wp-standards" "SEC:$PID_SEC:security" "PERF:$PID_PERF:performance" \
+              "DB:$PID_DB:database" "A11Y:$PID_A11Y:accessibility" "CQ:$PID_CQ:code-quality"; do
+    IFS=':' read -r label pid fname <<< "$pair"
+    wait "$pid" 2>/dev/null
+    rc=$?
+    # Treat as failure if exit != 0 OR output file is empty/missing
+    if [ "$rc" -ne 0 ] || [ ! -s "$SKILL_REPORT_DIR/${fname}.md" ]; then
+      FAILED_SKILLS="$FAILED_SKILLS $label(rc=$rc)"
+      # Show stderr if populated
+      if [ -s "$SKILL_REPORT_DIR/${fname}.err" ]; then
+        echo "  [${label}] error output:"
+        head -3 "$SKILL_REPORT_DIR/${fname}.err" | sed 's/^/    /'
+      fi
+    fi
+  done
+  if [ -n "$FAILED_SKILLS" ]; then
+    warn "Some skill audits failed:$FAILED_SKILLS"
+    log "- ⚠ Failed skill audits:$FAILED_SKILLS"
+  fi
 
   # Report results
   SKILL_FILES=$(ls "$SKILL_REPORT_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')

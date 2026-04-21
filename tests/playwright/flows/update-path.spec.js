@@ -60,7 +60,7 @@ test.describe('Update path (v1 → v2 migration)', () => {
     try {
       const debugLog = wp(`eval 'echo file_get_contents(WP_CONTENT_DIR . "/debug.log");'`);
       const errors = debugLog.split('\n').filter(l =>
-        /PHP (Fatal|Error|Warning)/i.test(l) && l.toLowerCase().includes(PLUGIN_SLUG.toLowerCase())
+        /PHP (Fatal|Error|Warning)/i.test(l) && l.toLowerCase().includes((PLUGIN_SLUG || '').toLowerCase())
       );
       expect(errors, `Migration produced PHP errors: ${errors.slice(0,3).join('\n')}`).toEqual([]);
     } catch {}

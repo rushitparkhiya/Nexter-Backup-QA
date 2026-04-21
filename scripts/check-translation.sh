@@ -74,9 +74,10 @@ else
 fi
 
 # 4. Load in WP, hit admin, check for errors
-ORIG_LOG=""
+ORIG_LOG=0
 DEBUG_LOG=$(wp eval 'echo WP_CONTENT_DIR;' 2>/dev/null)/debug.log
-[ -f "$DEBUG_LOG" ] && ORIG_LOG=$(wc -l < "$DEBUG_LOG")
+[ -f "$DEBUG_LOG" ] && ORIG_LOG=$(wc -l < "$DEBUG_LOG" | tr -d ' ')
+ORIG_LOG=${ORIG_LOG:-0}
 
 wp option update WPLANG en_XX 2>/dev/null || true
 wp eval 'load_plugin_textdomain("'"$PLUGIN_SLUG"'", false, dirname(plugin_basename("'"$PLUGIN_PATH"'/'"$PLUGIN_SLUG"'.php")) . "/languages");' 2>/dev/null || true
@@ -88,8 +89,14 @@ curl -s -o /dev/null "${WP_TEST_URL:-http://localhost:8881}/wp-admin/admin.php?p
 # Check for new errors
 NEW_ERRORS=0
 if [ -f "$DEBUG_LOG" ]; then
-  CURR_LOG=$(wc -l < "$DEBUG_LOG")
-  NEW_ERRORS=$(tail -n $((CURR_LOG - ORIG_LOG)) "$DEBUG_LOG" 2>/dev/null | grep -cE "PHP (Fatal|Warning|Notice).*(sprintf|printf|_n\(|translation)" || echo 0)
+  CURR_LOG=$(wc -l < "$DEBUG_LOG" | tr -d ' ')
+  CURR_LOG=${CURR_LOG:-0}
+  DELTA=$((CURR_LOG - ORIG_LOG))
+  if [ "$DELTA" -gt 0 ]; then
+    NEW_ERRORS=$(tail -n "$DELTA" "$DEBUG_LOG" 2>/dev/null | grep -cE "PHP (Fatal|Warning|Notice).*(sprintf|printf|_n\(|translation)" 2>/dev/null || true)
+  fi
+  NEW_ERRORS=$(echo "${NEW_ERRORS:-0}" | head -1 | tr -dc '0-9')
+  NEW_ERRORS=${NEW_ERRORS:-0}
 fi
 
 # Cleanup

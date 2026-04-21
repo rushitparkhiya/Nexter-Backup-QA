@@ -73,16 +73,39 @@ test.describe('Keyboard navigation (WCAG 2.1.1)', () => {
       'Tab should reach multiple elements (focus trap or all hidden?)'
     ).toBeGreaterThan(2);
 
-    // Check 2: Focus indicator visible
-    const hasFocusVisible = await page.evaluate(() => {
+    // Check 2: Focus indicator visible — computed style detection
+    // getComputedStyle returns e.g. "0px none rgb(0,0,0)" for no-outline, not the literal "none"
+    const focusVisibleCheck = await page.evaluate(() => {
       const el = document.activeElement;
-      if (!el || el === document.body) return true; // skip
+      if (!el || el === document.body || el === document.documentElement) return { skip: true };
       const style = getComputedStyle(el);
-      return style.outlineStyle !== 'none' || style.boxShadow !== 'none' || style.border !== 'none';
+      // Parse outline-width (e.g. "0px", "2px")
+      const outlineW = parseFloat(style.outlineWidth) || 0;
+      const hasOutline = outlineW > 0 && style.outlineStyle !== 'none';
+      // Box shadow: "none" literal means no shadow
+      const hasBoxShadow = style.boxShadow && style.boxShadow !== 'none';
+      // Border: check widths not the shorthand string
+      const borderW = Math.max(
+        parseFloat(style.borderTopWidth) || 0,
+        parseFloat(style.borderRightWidth) || 0,
+        parseFloat(style.borderBottomWidth) || 0,
+        parseFloat(style.borderLeftWidth) || 0
+      );
+      const hasBorder = borderW > 0;
+      return {
+        skip: false,
+        hasOutline,
+        hasBoxShadow,
+        hasBorder,
+        indicator: hasOutline || hasBoxShadow || hasBorder,
+      };
     });
-    expect(hasFocusVisible,
-      'Focused element must have visible focus indicator (WCAG 2.4.7)'
-    ).toBeTruthy();
+
+    if (!focusVisibleCheck.skip) {
+      expect(focusVisibleCheck.indicator,
+        `Focused element must have visible focus indicator (WCAG 2.4.7) — outline=${focusVisibleCheck.hasOutline}, shadow=${focusVisibleCheck.hasBoxShadow}, border=${focusVisibleCheck.hasBorder}`
+      ).toBeTruthy();
+    }
 
     console.log(`[orbit] Keyboard nav: PASSED — reached ${focusHistory.size} elements in ${tabsPressed} tabs`);
   });

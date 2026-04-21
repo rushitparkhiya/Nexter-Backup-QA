@@ -26,6 +26,9 @@ function wp(cmd) {
   return execSync(`${WP_ENV_RUN} ${cmd}`, { encoding: 'utf8' }).trim();
 }
 
+// Serial — mutates network state
+test.describe.configure({ mode: 'serial' });
+
 test.describe('Multisite compatibility', () => {
   test.skip(!PLUGIN_SLUG || process.env.MULTISITE !== '1',
     'Set PLUGIN_SLUG and MULTISITE=1 to run multisite tests (requires multisite wp-env)');

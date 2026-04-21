@@ -47,7 +47,8 @@ wp redis enable 2>/dev/null || wp eval 'wp_cache_flush();' 2>/dev/null
 # 4. Snapshot debug.log
 DEBUG_LOG=$(wp eval 'echo WP_CONTENT_DIR;' 2>/dev/null)/debug.log
 START_LINES=0
-[ -f "$DEBUG_LOG" ] && START_LINES=$(wc -l < "$DEBUG_LOG")
+[ -f "$DEBUG_LOG" ] && START_LINES=$(wc -l < "$DEBUG_LOG" | tr -d ' ')
+START_LINES=${START_LINES:-0}
 
 # 5. Activate plugin and exercise
 wp plugin activate "$PLUGIN_SLUG" || { echo -e "${RED}✗ Plugin activation failed${NC}"; exit 1; }
@@ -60,8 +61,15 @@ curl -s -o /dev/null "${WP_TEST_URL:-http://localhost:8881}/wp-admin/admin.php?p
 # 6. Check for new errors
 NEW_ERRORS=0
 if [ -f "$DEBUG_LOG" ]; then
-  CURR=$(wc -l < "$DEBUG_LOG")
-  NEW_ERRORS=$(tail -n $((CURR - START_LINES)) "$DEBUG_LOG" 2>/dev/null | grep -cE "PHP (Fatal|Warning|Notice)" || echo 0)
+  CURR=$(wc -l < "$DEBUG_LOG" | tr -d ' ')
+  CURR=${CURR:-0}
+  START_LINES=${START_LINES:-0}
+  DELTA=$((CURR - START_LINES))
+  if [ "$DELTA" -gt 0 ]; then
+    NEW_ERRORS=$(tail -n "$DELTA" "$DEBUG_LOG" 2>/dev/null | grep -cE "PHP (Fatal|Warning|Notice)" 2>/dev/null || true)
+  fi
+  NEW_ERRORS=$(echo "${NEW_ERRORS:-0}" | head -1 | tr -dc '0-9')
+  NEW_ERRORS=${NEW_ERRORS:-0}
 fi
 
 # 7. Check for transient-related issues

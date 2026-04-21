@@ -22,6 +22,9 @@ function wp(cmd) {
   return execSync(`${WP_ENV_RUN} ${cmd}`, { encoding: 'utf8' }).trim();
 }
 
+// Serial — mutates user admin_color which is a shared WP state
+test.describe.configure({ mode: 'serial' });
+
 test.describe('Admin color scheme compatibility', () => {
   test.skip(!ADMIN_SLUG, 'Set PLUGIN_ADMIN_SLUG to the plugin admin page slug');
 

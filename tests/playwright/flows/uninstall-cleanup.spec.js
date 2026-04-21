@@ -21,8 +21,11 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
 const PLUGIN_SLUG    = process.env.PLUGIN_SLUG || '';
-const PLUGIN_PREFIX  = process.env.PLUGIN_PREFIX || PLUGIN_SLUG.replace(/-/g, '_');
-const CUSTOM_TABLES  = (process.env.PLUGIN_CUSTOM_TABLES || '').split(',').filter(Boolean);
+const PLUGIN_PREFIX  = (process.env.PLUGIN_PREFIX || PLUGIN_SLUG.replace(/-/g, '_'))
+  .replace(/[^a-zA-Z0-9_]/g, ''); // sanitize — no SQL injection vector
+const CUSTOM_TABLES  = (process.env.PLUGIN_CUSTOM_TABLES || '').split(',')
+  .filter(Boolean)
+  .map((t) => t.replace(/[^a-zA-Z0-9_]/g, ''));
 const WP_ENV_RUN     = process.env.WP_ENV_RUN || 'npx wp-env run cli wp';
 
 function wp(cmd) {
@@ -41,7 +44,8 @@ test.describe('Uninstall cleanup (WP.org compliance)', () => {
     }
 
     // 2. Snapshot state while active (for diagnostic if cleanup fails)
-    const optionsBefore = wp(`option list --search="${PLUGIN_PREFIX}%" --format=count`);
+    // NOTE: wp-cli `option list --search` uses GLOB patterns (*), NOT SQL (%)
+    const optionsBefore = wp(`option list --search='${PLUGIN_PREFIX}*' --format=count`);
     const transientsBefore = wp(
       `db query "SELECT COUNT(*) FROM \\\`wp_options\\\` WHERE option_name LIKE '_transient_${PLUGIN_PREFIX}%'" --skip-column-names`
     );
@@ -51,21 +55,31 @@ test.describe('Uninstall cleanup (WP.org compliance)', () => {
     wp(`plugin deactivate ${PLUGIN_SLUG}`);
     wp(`plugin delete ${PLUGIN_SLUG}`);
 
-    // 4. Assertions
+    // 4. Assertions — options (glob syntax for wp-cli)
     const optionsAfter = parseInt(
-      wp(`option list --search="${PLUGIN_PREFIX}%" --format=count`) || '0', 10
+      wp(`option list --search='${PLUGIN_PREFIX}*' --format=count`) || '0', 10
     );
-    expect(optionsAfter, 'Plugin options should be deleted by uninstall').toBe(0);
+    expect(optionsAfter, `${optionsAfter} plugin options left after uninstall`).toBe(0);
 
+    // 5. Transients (SQL % is correct inside db query)
     const transientsAfter = parseInt(
       wp(
-        `db query "SELECT COUNT(*) FROM \\\`wp_options\\\` WHERE option_name LIKE '_transient_${PLUGIN_PREFIX}%'" --skip-column-names`
+        `db query "SELECT COUNT(*) FROM \\\`wp_options\\\` WHERE option_name LIKE '_transient_${PLUGIN_PREFIX}%' OR option_name LIKE '_site_transient_${PLUGIN_PREFIX}%'" --skip-column-names`
       ) || '0',
       10
     );
-    expect(transientsAfter, 'Plugin transients should be deleted').toBe(0);
+    expect(transientsAfter, `${transientsAfter} plugin transients left after uninstall`).toBe(0);
 
-    // 5. Custom tables dropped
+    // 6. User meta with plugin prefix
+    const userMetaLeft = parseInt(
+      wp(
+        `db query "SELECT COUNT(*) FROM \\\`wp_usermeta\\\` WHERE meta_key LIKE '${PLUGIN_PREFIX}%'" --skip-column-names`
+      ) || '0',
+      10
+    );
+    expect(userMetaLeft, `${userMetaLeft} plugin user_meta rows left after uninstall`).toBe(0);
+
+    // 7. Custom tables dropped
     for (const table of CUSTOM_TABLES) {
       const tableExists = wp(
         `db query "SHOW TABLES LIKE 'wp_${table}'" --skip-column-names`
@@ -73,15 +87,25 @@ test.describe('Uninstall cleanup (WP.org compliance)', () => {
       expect(tableExists, `Custom table wp_${table} should be dropped on uninstall`).toBe('');
     }
 
-    // 6. No orphaned cron events
+    // 8. No orphaned cron events
     const cronEvents = wp(`cron event list --format=json`);
-    const orphaned = JSON.parse(cronEvents).filter((e) =>
-      (e.hook || '').includes(PLUGIN_PREFIX)
-    );
+    let orphaned = [];
+    try {
+      orphaned = JSON.parse(cronEvents || '[]').filter((e) =>
+        (e.hook || '').includes(PLUGIN_PREFIX)
+      );
+    } catch { /* empty cron = no orphans */ }
     expect(
       orphaned,
       `Found ${orphaned.length} orphaned cron events from this plugin after uninstall`
     ).toEqual([]);
+
+    // 9. Custom capabilities cleaned up (via add_cap / add_role patterns)
+    const customCapsLeft = wp(
+      `db query "SELECT option_value FROM \\\`wp_options\\\` WHERE option_name = 'wp_user_roles'" --skip-column-names`
+    );
+    const hasCustomCap = customCapsLeft.includes(PLUGIN_PREFIX);
+    expect(hasCustomCap, `Plugin capabilities still in wp_user_roles after uninstall`).toBe(false);
 
     console.log('[orbit] Uninstall cleanup: PASSED');
   });
