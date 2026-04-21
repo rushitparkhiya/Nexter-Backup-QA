@@ -113,6 +113,48 @@ else
   ((WARN++))
 fi
 
+# ── STEP 2b: WORDPRESS.ORG PLUGIN CHECK (official WP.org review tool) ────────
+# This is what the WordPress.org plugin review team actually runs.
+# Catches: unsafe functions (eval, base64_decode), remote code exec patterns,
+# GPL violations, readme.txt format errors, plugin header issues, and 40+ more.
+header "Step 2b: WordPress.org Plugin Check"
+log "## Step 2b: Plugin Check (WP.org)"
+
+if command -v wp &>/dev/null; then
+  PLUGIN_SLUG=$(basename "$PLUGIN_PATH")
+  # Copy plugin to wp-env plugins dir if running in local wp-env
+  WP_ENV_PLUGINS=""
+  if [ -d ".wp-env" ]; then
+    WP_ENV_PLUGINS=$(wp eval 'echo WP_PLUGIN_DIR;' --path="$(wp eval 'echo ABSPATH;' 2>/dev/null)" 2>/dev/null || echo "")
+  fi
+
+  # Run plugin-check via wp-cli (requires plugin-check plugin installed in wp-env)
+  # Install: wp plugin install plugin-check --activate
+  WP_CHECK_OUT=$(wp plugin check "$PLUGIN_SLUG" \
+    --format=table 2>&1 || true)
+  WP_CHECK_ERRORS=$(echo "$WP_CHECK_OUT" | grep -c "ERROR\|error" 2>/dev/null || echo "0")
+  WP_CHECK_WARNINGS=$(echo "$WP_CHECK_OUT" | grep -c "WARNING\|warning" 2>/dev/null || echo "0")
+
+  if echo "$WP_CHECK_OUT" | grep -qi "no errors\|no issues\|0 errors"; then
+    ok "Plugin Check — passed (WP.org review compliant)"
+    log "- ✓ Plugin Check: passed"
+    ((PASS++))
+  elif [ "$WP_CHECK_ERRORS" -gt 0 ]; then
+    fail "Plugin Check — $WP_CHECK_ERRORS errors (would fail WP.org review)"
+    echo "$WP_CHECK_OUT" | head -20
+    log "- ✗ Plugin Check: $WP_CHECK_ERRORS errors, $WP_CHECK_WARNINGS warnings"
+    ((FAIL++))
+  else
+    warn "Plugin Check — $WP_CHECK_WARNINGS warnings (review before WP.org submission)"
+    log "- ⚠ Plugin Check: $WP_CHECK_WARNINGS warnings"
+    ((WARN++))
+  fi
+else
+  warn "WP-CLI not found — skipping Plugin Check. Install: brew install wp-cli"
+  log "- ⚠ Plugin Check: skipped (wp-cli not found)"
+  ((WARN++))
+fi
+
 # ── STEP 3: PHPSTAN STATIC ANALYSIS ──────────────────────────────────────────
 header "Step 3: PHPStan Static Analysis"
 log "## Step 3: PHPStan"
@@ -265,6 +307,56 @@ else
   ((WARN++))
 fi
 
+# ── STEP 6c: PHP DEPRECATION NOTICE SCAN (runtime — PHPStan can't catch these) ─
+# PHPStan is static analysis. PHP Deprecated notices only appear at RUNTIME
+# when the deprecated code path is actually executed. This step catches them
+# by parsing wp-content/debug.log after Playwright has exercised the plugin.
+header "Step 6c: PHP Deprecation Notice Scan"
+log "## Step 6c: Deprecation Scan"
+
+# Find wp-content debug.log (works with wp-env and standard installs)
+DEBUG_LOG_PATHS=(
+  "$(wp eval 'echo WP_CONTENT_DIR;' 2>/dev/null)/debug.log"
+  ".wp-env/*/WordPress/wp-content/debug.log"
+  "/tmp/wordpress/wp-content/debug.log"
+)
+DEBUG_LOG=""
+for path in "${DEBUG_LOG_PATHS[@]}"; do
+  # Handle glob patterns
+  for resolved in $path; do
+    if [ -f "$resolved" ]; then
+      DEBUG_LOG="$resolved"
+      break 2
+    fi
+  done
+done
+
+if [ -n "$DEBUG_LOG" ] && [ -f "$DEBUG_LOG" ]; then
+  PLUGIN_SLUG=$(basename "$PLUGIN_PATH")
+  # Count deprecations from this plugin specifically
+  DEPRECATED=$(grep -i "PHP Deprecated" "$DEBUG_LOG" 2>/dev/null | \
+    grep -i "$PLUGIN_SLUG" | wc -l | tr -d ' ' || echo "0")
+  # Count all deprecations (could be WP core or other plugins affecting ours)
+  ALL_DEPRECATED=$(grep -c "PHP Deprecated" "$DEBUG_LOG" 2>/dev/null || echo "0")
+
+  if [ "$DEPRECATED" -eq 0 ]; then
+    ok "No PHP deprecation notices from $PLUGIN_SLUG (debug.log)"
+    [ "$ALL_DEPRECATED" -gt 0 ] && warn "  Note: $ALL_DEPRECATED total deprecations in log (from WP core or other plugins)"
+    log "- ✓ Deprecation scan: 0 from plugin, $ALL_DEPRECATED total"
+    ((PASS++))
+  else
+    fail "$DEPRECATED PHP Deprecated notices from $PLUGIN_SLUG — PHP 8.x incompatibility risk"
+    grep -i "PHP Deprecated" "$DEBUG_LOG" | grep -i "$PLUGIN_SLUG" | head -5
+    log "- ✗ Deprecation: $DEPRECATED notices from plugin"
+    ((FAIL++))
+  fi
+else
+  warn "debug.log not found — enable WP_DEBUG + WP_DEBUG_LOG for deprecation scan"
+  warn "  Add to wp-env .wp-env.json: { \"config\": { \"WP_DEBUG\": true, \"WP_DEBUG_LOG\": true } }"
+  log "- ⚠ Deprecation scan: skipped (debug.log not found)"
+  ((WARN++))
+fi
+
 # ── STEP 7: LIGHTHOUSE PERFORMANCE ───────────────────────────────────────────
 if [ "$MODE" = "full" ]; then
   header "Step 7: Lighthouse Performance"
@@ -311,6 +403,89 @@ if [ "$MODE" = "full" ] && [ "$ENV" = "local" ]; then
   log "## Step 8: Database"
   bash scripts/db-profile.sh 2>/dev/null || warn "DB profiling failed — see docs/database-profiling.md"
   log "- See reports/db-profile-$TIMESTAMP.txt"
+fi
+
+# ── STEP 8b: MEMORY PROFILING ─────────────────────────────────────────────────
+# Shared hosting memory limits: 64MB (common cheap hosting), 128MB (standard),
+# 256MB+ (managed hosting). A single bloated plugin can white-screen an entire site.
+# This check measures PHP peak memory usage when the plugin is active.
+if [ "$MODE" = "full" ] && [ "$ENV" = "local" ]; then
+  header "Step 8b: Memory Profiling"
+  log "## Step 8b: Memory"
+
+  if command -v wp &>/dev/null; then
+    # Peak memory after WP loads with plugin active
+    PEAK_MEM=$(wp eval 'echo round(memory_get_peak_usage(true) / 1048576, 1);' 2>/dev/null || echo "?")
+    # Current memory limit
+    MEM_LIMIT=$(wp eval 'echo WP_MEMORY_LIMIT;' 2>/dev/null || echo "?")
+
+    if [ "$PEAK_MEM" != "?" ]; then
+      PEAK_INT=$(echo "$PEAK_MEM" | cut -d. -f1)
+      if [ "$PEAK_INT" -lt 32 ]; then
+        ok "Peak memory: ${PEAK_MEM}MB (excellent — under 32MB threshold)"
+        log "- ✓ Memory: ${PEAK_MEM}MB peak (limit: $MEM_LIMIT)"
+        ((PASS++))
+      elif [ "$PEAK_INT" -lt 64 ]; then
+        warn "Peak memory: ${PEAK_MEM}MB (watch — approaches 64MB shared hosting limit)"
+        log "- ⚠ Memory: ${PEAK_MEM}MB peak (limit: $MEM_LIMIT)"
+        ((WARN++))
+      else
+        fail "Peak memory: ${PEAK_MEM}MB (HIGH — will crash on 64MB shared hosting)"
+        log "- ✗ Memory: ${PEAK_MEM}MB peak — exceeds shared hosting limit"
+        ((FAIL++))
+      fi
+    else
+      warn "Memory profiling failed — is wp-env running?"
+      log "- ⚠ Memory: skipped (wp-cli eval failed)"
+      ((WARN++))
+    fi
+  else
+    warn "WP-CLI not found — skipping memory profiling"
+    log "- ⚠ Memory: skipped (wp-cli not found)"
+    ((WARN++))
+  fi
+fi
+
+# ── STEP 8c: WP-CRON VERIFICATION ─────────────────────────────────────────────
+# Cron failures are completely silent in WordPress — no error, no log.
+# A plugin that registers scheduled events on activation must also clear them
+# on deactivation. This step checks the cron queue state using WP-CLI.
+if [ "$MODE" = "full" ] && [ "$ENV" = "local" ]; then
+  header "Step 8c: WP-Cron Event Verification"
+  log "## Step 8c: WP-Cron"
+
+  if command -v wp &>/dev/null; then
+    CRON_COUNT=$(wp cron event list --format=count 2>/dev/null || echo "?")
+    CRON_LIST=$(wp cron event list --format=table 2>/dev/null | head -20 || echo "")
+
+    if [ "$CRON_COUNT" != "?" ]; then
+      ok "WP-Cron events registered: $CRON_COUNT"
+      # Check for overdue events (stuck/never-firing crons)
+      OVERDUE=$(wp cron event list --format=json 2>/dev/null | \
+        python3 -c "import json,sys,time; d=json.load(sys.stdin); print(sum(1 for e in d if e.get('next_run_relative','').startswith('-')))" \
+        2>/dev/null || echo "0")
+      if [ "$OVERDUE" -gt 0 ]; then
+        warn "  $OVERDUE overdue cron events (scheduled in the past, never fired)"
+        warn "  Check: is DISABLE_WP_CRON=true without a server-side cron replacement?"
+        log "- ⚠ Cron: $CRON_COUNT events, $OVERDUE overdue"
+        ((WARN++))
+      else
+        log "- ✓ Cron: $CRON_COUNT events, 0 overdue"
+        ((PASS++))
+      fi
+      # Show first 5 events for manual verification
+      echo -e "  ${CYAN}Cron events (verify your plugin's scheduled hooks are present):${NC}"
+      wp cron event list --format=table 2>/dev/null | head -8 || true
+    else
+      warn "Could not read WP-Cron events — is wp-env running?"
+      log "- ⚠ Cron: skipped"
+      ((WARN++))
+    fi
+  else
+    warn "WP-CLI not found — skipping cron verification"
+    log "- ⚠ Cron: skipped (wp-cli not found)"
+    ((WARN++))
+  fi
 fi
 
 # ── STEP 9: COMPETITOR COMPARISON (auto from qa.config.json) ──────────────────
@@ -389,38 +564,78 @@ if [ "$MODE" = "full" ] && command -v claude &>/dev/null && [ -n "$PLUGIN_PATH" 
   echo -e "  ${CYAN}Running 6 parallel skill audits on $PLUGIN_PATH...${NC}"
   echo -e "  ${CYAN}This takes 3-6 minutes. Reports stream to $SKILL_REPORT_DIR/\n${NC}"
 
-  # 1. WP Standards
-  claude "/wordpress-plugin-development
-Audit the WordPress plugin at: $PLUGIN_PATH
-Check: naming conventions, escaping, nonce usage, capability checks, hooks, i18n.
+  # 1. WP Standards (uses /orbit-wp-standards — review-focused, not scaffolding)
+  claude "/orbit-wp-standards
+You are performing a WordPress plugin code standards review — NOT generating new code.
+Read and analyze the WordPress plugin at: $PLUGIN_PATH
+Check: text domain consistency, nonce field naming, prefix collision risk, enqueue hook timing,
+sanitize-on-input + escape-on-output rule, activation hook safety, capability checks on all admin actions,
+i18n wrapping completeness, no direct DB queries without $wpdb, plugin header completeness.
 Rate each finding Critical / High / Medium / Low. List all issues with file:line references.
 Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/wp-standards.md" 2>/dev/null &
   PID_WP=$!
 
-  # 2. Security / Penetration Testing
-  claude "/wordpress-penetration-testing
-Security audit the WordPress plugin at: $PLUGIN_PATH
-Check: XSS, CSRF, SQLi, auth bypass, path traversal, privilege escalation — OWASP Top 10 for WordPress.
-Rate each finding Critical / High / Medium / Low with CVSS context.
+  # 2. Security — PHP SOURCE CODE review (NOT a live attack tool)
+  # Uses /security-auditor (data flow, IDOR) + /security-scanning-security-sast (SAST patterns)
+  # DO NOT use /wordpress-penetration-testing here — that is an attacker tool for live sites
+  claude "/security-auditor
+You are performing a static security code review of a WordPress plugin — NOT scanning a live URL.
+Read the PHP source code at: $PLUGIN_PATH
+Check these WordPress-specific vulnerability patterns:
+1. is_admin() misuse — returns true for unauthenticated admin-ajax.php requests
+2. Conditional nonce bypass — if (isset(\$_POST['nonce']) && !wp_verify_nonce()) pattern
+3. Shortcode attribute XSS — wp_kses_post() does NOT sanitize shortcode attributes
+4. ORDER BY / LIMIT SQL injection — \$wpdb->prepare() cannot parameterize these clauses
+5. PHP Object Injection via unserialize() with DB-sourced data
+6. wp_ajax_nopriv_ + update_option() = unauthenticated site takeover
+7. Privilege escalation via unrestricted update_user_meta()
+8. REST API IDOR — permission_callback present but no object ownership check
+9. Missing output escaping before echo/print
+10. Capability checks missing on AJAX handlers
+Rate each finding Critical / High / Medium / Low with file:line references.
 Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/security.md" 2>/dev/null &
   PID_SEC=$!
 
-  # 3. Performance Engineering
-  claude "/performance-engineer
-Analyze performance of the WordPress plugin at: $PLUGIN_PATH
-Check: expensive hook callbacks, N+1 DB calls, heavy asset loading, blocking scripts, unnecessary autoload.
-Rank all issues by frontend and admin impact.
+  # 3. WP-Specific Performance (uses /orbit-wp-performance — WP hook system, not cloud infra)
+  # DO NOT use /performance-engineer — that is a Kubernetes/Prometheus cloud skill
+  claude "/orbit-wp-performance
+You are analyzing WordPress plugin performance by reading PHP source code.
+Analyze the plugin at: $PLUGIN_PATH
+Check these WordPress-specific performance patterns:
+1. Hooks running on every page load vs conditional (is_admin, is_singular, etc.)
+2. N+1 DB queries — WP_Query or get_posts() inside foreach loops
+3. get_option() or get_post_meta() called in loops without caching
+4. Assets (scripts/styles) enqueued globally instead of page-specific
+5. Autoload option bloat — large arrays stored with autoload=yes
+6. Transient misuse — setting transients on every page request
+7. Direct \$wpdb queries where WP API functions would be more efficient
+8. Missing wp_cache_* usage for expensive operations
+9. Blocking synchronous HTTP requests on the critical path
+10. Missing object caching layer (wp_cache_get before expensive queries)
+Rate all issues by frontend and admin impact. Include before/after code examples.
 Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/performance.md" 2>/dev/null &
   PID_PERF=$!
 
-  # 4. Database Optimizer
-  claude "/database-optimizer
+  # 4. WP-Specific Database Review (uses /orbit-wp-database — $wpdb patterns, not enterprise DBA)
+  # DO NOT use community /database-optimizer — that is a PostgreSQL/DynamoDB enterprise skill
+  claude "/orbit-wp-database
+You are reviewing WordPress plugin database usage by reading PHP source code.
 Review all database usage in the WordPress plugin at: $PLUGIN_PATH
-Check: N+1 query patterns, missing indexes, raw SQL without wpdb->prepare(), autoload bloat, transient misuse.
-List every fix with corrected SQL examples where applicable.
+Check these WordPress/MySQL specific patterns:
+1. \$wpdb->prepare() on ALL user-controlled input including ORDER BY/LIMIT clauses
+2. Custom tables use dbDelta() not raw CREATE TABLE (uppercase column types, two-space PRIMARY KEY)
+3. Large options stored with autoload = 'no'
+4. Transient expiry set appropriately (not zero = never expires)
+5. get_post_meta() with single=true to avoid array wrapping bugs
+6. Missing indexes on custom table columns used in WHERE clauses
+7. uninstall.php drops custom tables and deletes all options/transients
+8. No direct wpdb queries where WP_Query or get_posts() would work
+9. SQL LIKE queries with proper esc_like() escaping
+10. No unbounded queries (posts_per_page = -1 without scale justification)
+List every fix with corrected code examples where applicable.
 Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/database.md" 2>/dev/null &
   PID_DB=$!
@@ -430,14 +645,18 @@ Output a full markdown report with a severity summary table at the top." \
 Audit the WordPress plugin at: $PLUGIN_PATH for accessibility compliance.
 Check: admin UI keyboard navigation, ARIA roles/labels, color contrast, focus management, screen reader output, block editor output.
 Standard: WCAG 2.2 AA. Rate each issue Critical / High / Medium / Low.
+Also check: focus trap in modals, Tab order for settings pages, missing form labels, no aria-hidden on interactive elements.
 Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/accessibility.md" 2>/dev/null &
   PID_A11Y=$!
 
-  # 6. Code Quality Review
-  claude "/code-review-excellence
+  # 6. Code Quality — includes AI-generated code risk detection
+  claude "/vibe-code-auditor
 Review the code quality of the WordPress plugin at: $PLUGIN_PATH
 Check: dead code, cyclomatic complexity, error handling gaps, type safety, readability, PHP 8.x compatibility.
+Additionally check for AI-generated code risks: hallucinated WordPress functions, incorrect hook signatures,
+wrong return types from WP API functions, missing error handling on wp_remote_get() responses,
+silently-failing patterns (no return value check, no is_wp_error() check).
 Rate each issue High / Medium / Low. Include refactor suggestions.
 Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/code-quality.md" 2>/dev/null &

@@ -18,23 +18,29 @@ These six are mandatory for every full audit. Run them in parallel.
 
 | # | Skill | What it checks |
 |---|-------|----------------|
-| 1 | `/wordpress-plugin-development` | WP coding standards — hooks, escaping, nonces, capability checks, i18n, naming |
-| 2 | `/wordpress-penetration-testing` | OWASP Top 10 for WP — XSS, CSRF, SQLi, auth bypass, path traversal |
-| 3 | `/performance-engineer` | Hook weight, N+1 DB calls, blocking assets, expensive loops |
-| 4 | `/database-optimizer` | Prepared statements, autoload bloat, missing indexes, transient patterns |
+| 1 | `/orbit-wp-standards` | WP coding standards — hooks, escaping, nonces, capability checks, i18n, naming |
+| 2 | `/security-auditor` + `/security-scanning-security-sast` | PHP source code security — XSS, CSRF, SQLi, auth bypass, WP-specific vuln patterns |
+| 3 | `/orbit-wp-performance` | WP hook weight, N+1 DB calls, blocking assets, expensive loops, transient misuse |
+| 4 | `/orbit-wp-database` | Prepared statements, autoload bloat, missing indexes, transient patterns, uninstall cleanup |
 | 5 | `/accessibility-compliance-accessibility-audit` | WCAG 2.2 AA — admin UI, block editor, frontend output |
-| 6 | `/code-review-excellence` | Code quality — dead code, complexity, error handling, readability |
+| 6 | `/vibe-code-auditor` + `/codebase-audit-pre-push` | Code quality + AI-generated code risks — dead code, complexity, error handling |
+
+> **IMPORTANT — Skills that have been REMOVED from the core 6 and why:**
+> - `/wordpress-penetration-testing` — This is an **attacker tool** (WPScan, Metasploit, brute force). It does NOT read PHP source code. Use it only for live staging audits. For code review, use `/security-auditor` + `/security-scanning-security-sast`.
+> - `/performance-engineer` — This is a **cloud infrastructure skill** (Kubernetes, Prometheus, APM). It has no knowledge of WordPress hooks, transients, or WP_Query. Use `/orbit-wp-performance` instead.
+> - `/database-optimizer` (community) — This is an **enterprise DBA skill** (PostgreSQL sharding, DynamoDB). Not guaranteed to know `$wpdb`, autoload, or WP patterns. Use `/orbit-wp-database` instead.
+> - `/wordpress-plugin-development` — This is a **scaffolding skill** that generates new plugin boilerplate. It is not a code reviewer. Use `/orbit-wp-standards` instead.
 
 ### How to Invoke
 
 ```bash
 # Full audit — all 6 in parallel
-claude "/wordpress-plugin-development Audit /path/to/plugin — WP standards"
-claude "/wordpress-penetration-testing Security audit /path/to/plugin — OWASP Top 10"
-claude "/performance-engineer Analyze /path/to/plugin — hook weight, N+1, assets"
-claude "/database-optimizer Review /path/to/plugin — queries, indexes, autoload"
+claude "/orbit-wp-standards Audit /path/to/plugin — WP coding standards, nonces, escaping, caps, i18n"
+claude "/security-auditor + /security-scanning-security-sast Security audit /path/to/plugin — PHP source code review, WP vuln patterns"
+claude "/orbit-wp-performance Analyze /path/to/plugin — WP hooks, N+1, transient misuse, asset loading"
+claude "/orbit-wp-database Review /path/to/plugin — $wpdb, autoload, indexes, uninstall cleanup"
 claude "/accessibility-compliance-accessibility-audit Check /path/to/plugin admin UI + frontend"
-claude "/code-review-excellence Review /path/to/plugin — quality, complexity, patterns"
+claude "/vibe-code-auditor + /codebase-audit-pre-push Review /path/to/plugin — quality, AI-gen code risks, complexity"
 ```
 
 Or use the gauntlet (runs all 6 automatically in parallel):
@@ -65,12 +71,15 @@ When multiple skills overlap, use these and only these:
 
 | Task | Use this | NOT these |
 |------|----------|-----------|
-| DB review | `/database-optimizer` | ~~`/database`~~, ~~`/database-admin`~~, ~~`/database-architect`~~ |
-| Security audit | `/wordpress-penetration-testing` + `/security-auditor` | ~~`/security-audit`~~, ~~`/security-scanning-security-sast`~~ |
-| Performance | `/performance-engineer` | ~~`/performance-optimizer`~~, ~~`/performance-profiling`~~ |
-| Code review | `/code-review-excellence` | ~~`/code-review-ai-ai-review`~~, ~~`/code-reviewer`~~, ~~`/code-review-checklist`~~ |
+| WP coding standards review | `/orbit-wp-standards` | ~~`/wordpress-plugin-development`~~ (scaffolder, not reviewer), ~~`/wordpress`~~ (too generic) |
+| Security — PHP source code review | `/security-auditor` + `/security-scanning-security-sast` + `/orbit-wp-security` | ~~`/wordpress-penetration-testing`~~ (**attacker tool — wrong for code review**), ~~`/security-audit`~~ |
+| Security — live staging audit | `/wordpress-penetration-testing` | ~~`/security-auditor`~~ (not for live URL scanning) |
+| Performance | `/orbit-wp-performance` + `/web-performance-optimization` | ~~`/performance-engineer`~~ (**cloud infra skill, wrong domain**), ~~`/performance-optimizer`~~ |
+| DB review | `/orbit-wp-database` | ~~`/database-optimizer`~~ (enterprise DBA, wrong dialect), ~~`/database-admin`~~, ~~`/database-architect`~~ |
+| Code quality | `/vibe-code-auditor` + `/codebase-audit-pre-push` | ~~`/code-review-excellence`~~ (generic, no WP context), ~~`/code-reviewer`~~ |
+| Accessibility | `/accessibility-compliance-accessibility-audit` + `/fixing-accessibility` + `/wcag-audit-patterns` | ~~`/accessibility`~~ (too generic) |
 | E2E tests | `/playwright-skill` + `/e2e-testing-patterns` | ~~`/e2e-testing`~~, ~~`/playwright-java`~~ |
-| WP plugin | `/wordpress-plugin-development` | ~~`/wordpress`~~ (too generic) |
+| AI-generated code risks | `/vibe-code-auditor` | ~~`/code-review-excellence`~~ (doesn't flag AI hallucinations) |
 
 ---
 
