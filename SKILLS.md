@@ -293,7 +293,7 @@ Full UAT against http://localhost:8881 for plugin [path]:
 - Error console monitoring
 ```
 
-### 11. Theme Review (NexterWP-style)
+### 11. Theme Review
 
 ```
 /wordpress-theme-development

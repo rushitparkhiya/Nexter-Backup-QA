@@ -624,7 +624,7 @@ claude "/performance-engineer Find all N+1 queries in ~/plugins/the-plus-addons/
 # Admin UI quality check
 claude "/antigravity-design-expert Review admin UI in ~/plugins/the-plus-addons/admin/ for polish issues"
 
-# 4 parallel audit agents (same as RankReady gauntlet)
+# 4 parallel audit agents (WP standards, security, performance, DB)
 claude "Run 4 parallel audits on ~/plugins/the-plus-addons:
 1. /wordpress-plugin-development — WP standards
 2. /wordpress-penetration-testing — security
@@ -705,7 +705,7 @@ Orbit runs **locally, on demand, from Claude Code**. No GitHub Actions, no serve
 ## Adding Tests for Your Plugin
 
 1. Create: `tests/playwright/your-plugin/core.spec.js`
-2. Copy structure from `tests/playwright/tpa/core.spec.js`
+2. Copy a template from `tests/playwright/templates/`
 3. Replace admin URLs and CSS selectors with your plugin's
 4. Create a test site: `bash scripts/create-test-site.sh --plugin ~/plugins/your-plugin --port 8881`
 5. Run: `WP_TEST_URL=http://your-plugin.local npx playwright test tests/playwright/your-plugin/`
@@ -848,8 +848,8 @@ orbit/
 │   │   ├── seo-plugin/
 │   │   ├── woocommerce/
 │   │   └── theme/
-│   ├── tpa/                        # Real example: Elementor addon
-│   └── nexterwp/                   # Real example: theme + blocks
+│   ├── elementor-addon/            # Template: Elementor addon
+│   └── gutenberg-block/            # Template: Gutenberg block plugin
 ├── config/
 │   ├── phpcs.xml                   # WPCS + VIP + PHPCompatibility rules
 │   ├── phpstan.neon                # Level 5 static analysis

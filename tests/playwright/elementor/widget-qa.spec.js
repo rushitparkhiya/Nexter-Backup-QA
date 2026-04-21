@@ -13,7 +13,7 @@
  * qa.config.json shape this spec reads:
  * {
  *   "plugin": {
- *     "name": "The Plus Addons",
+ *     "name": "Your Elementor Addon",
  *     "widgets": [
  *       { "name": "Mega Menu", "category": "navigation", "searchTerm": "mega" },
  *       { "name": "Team Member", "category": "creative", "searchTerm": "team" }

@@ -4,9 +4,7 @@
   "description": "Orbit — Complete UAT for WordPress plugins. Dev, QA, PM, Designer, and End User perspectives — one command, every release.",
   "scripts": {
     "test": "playwright test tests/playwright/",
-    "test:tpa": "playwright test tests/playwright/tpa/",
-    "test:nexterwp": "playwright test tests/playwright/nexterwp/",
-    "test:responsive": "playwright test tests/playwright/tpa/responsive.spec.js tests/playwright/nexterwp/core.spec.js --project=mobile-chrome --project=tablet",
+    "test:plugin": "playwright test tests/playwright/",
     "test:visual": "playwright test --update-snapshots",
     "test:ci": "USE_PLAYGROUND=true playwright test --reporter=html",
     "gauntlet": "bash scripts/gauntlet.sh",

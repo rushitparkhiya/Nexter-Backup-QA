@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<ruleset name="POSIMYTH WordPress Coding Standards">
-  <description>POSIMYTH plugin coding standards — WordPress + VIP rules</description>
+<ruleset name="Orbit WordPress Coding Standards">
+  <description>WordPress plugin coding standards — WordPress + VIP rules</description>
 
   <!-- Scan PHP files only -->
   <arg name="extensions" value="php"/>

@@ -56,5 +56,5 @@ open reports/lighthouse/report.html
 
 Use the DataForSEO Lighthouse MCP tool for public URLs:
 ```
-mcp__dfs-mcp__on_page_lighthouse with url: https://staging.theplusaddons.com
+mcp__dfs-mcp__on_page_lighthouse with url: https://staging.your-plugin-site.com
 ```

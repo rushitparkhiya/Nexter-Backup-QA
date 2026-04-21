@@ -133,7 +133,7 @@ test.describe('Post Editor — Plugin UI', () => {
     expect(filtered, `Editor JS errors:\n${filtered.join('\n')}`).toHaveLength(0);
   });
 
-  // SEO meta box — Nexter / any plugin that adds a sidebar panel
+  // SEO meta box — any plugin that adds a sidebar panel
   test('post editor sidebar panel opens', async ({ page }) => {
     await page.goto(`${ADMIN}/post-new.php`);
     await page.waitForLoadState('networkidle');
