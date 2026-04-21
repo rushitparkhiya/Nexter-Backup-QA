@@ -373,66 +373,298 @@ if [ "$MODE" = "full" ]; then
 fi
 
 # ── STEP 11: CLAUDE SKILL AUDITS ──────────────────────────────────────────────
-# Auto-triggers Antigravity/skill-based deep audits if claude CLI is available.
-# Runs 4 parallel agents: WP standards · Security · Performance · DB
-# Each writes findings into reports/skill-audit-*.md
+# Runs all 6 mandatory Orbit skills in parallel via Antigravity / claude CLI.
+# Skills: WP standards · Security · Performance · DB · Accessibility · Code Quality
+# Each skill writes a markdown file. After all finish, a consolidated HTML report
+# is generated at reports/skill-audits/index.html — always output to file, never
+# terminal-only.
 
 if [ "$MODE" = "full" ] && command -v claude &>/dev/null && [ -n "$PLUGIN_PATH" ]; then
-  header "Step 11: Claude Skill Audits (parallel)"
+  header "Step 11: Claude Skill Audits (6 parallel)"
   log "## Step 11: Skill Audits"
 
   SKILL_REPORT_DIR="reports/skill-audits"
   mkdir -p "$SKILL_REPORT_DIR"
 
-  echo -e "  ${CYAN}Running 4 parallel skill audits on $PLUGIN_PATH...${NC}"
-  echo -e "  ${CYAN}This takes 2-4 minutes. Check $SKILL_REPORT_DIR/ for live output.${NC}"
+  echo -e "  ${CYAN}Running 6 parallel skill audits on $PLUGIN_PATH...${NC}"
+  echo -e "  ${CYAN}This takes 3-6 minutes. Reports stream to $SKILL_REPORT_DIR/\n${NC}"
 
-  # WP Standards audit
+  # 1. WP Standards
   claude "/wordpress-plugin-development
 Audit the WordPress plugin at: $PLUGIN_PATH
 Check: naming conventions, escaping, nonce usage, capability checks, hooks, i18n.
-List top 10 issues by severity. Output markdown." \
+Rate each finding Critical / High / Medium / Low. List all issues with file:line references.
+Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/wp-standards.md" 2>/dev/null &
   PID_WP=$!
 
-  # Security / penetration testing
+  # 2. Security / Penetration Testing
   claude "/wordpress-penetration-testing
 Security audit the WordPress plugin at: $PLUGIN_PATH
-Check: XSS, CSRF, SQLi, auth bypass, path traversal, OWASP Top 10.
-Rate each finding: Critical / High / Medium / Low. Output markdown." \
+Check: XSS, CSRF, SQLi, auth bypass, path traversal, privilege escalation — OWASP Top 10 for WordPress.
+Rate each finding Critical / High / Medium / Low with CVSS context.
+Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/security.md" 2>/dev/null &
   PID_SEC=$!
 
-  # Performance deep-dive
+  # 3. Performance Engineering
   claude "/performance-engineer
 Analyze performance of the WordPress plugin at: $PLUGIN_PATH
-Check: expensive hooks, unnecessary DB calls, heavy asset loading, blocking scripts.
-Rank issues by impact. Output markdown." \
+Check: expensive hook callbacks, N+1 DB calls, heavy asset loading, blocking scripts, unnecessary autoload.
+Rank all issues by frontend and admin impact.
+Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/performance.md" 2>/dev/null &
   PID_PERF=$!
 
-  # Database optimizer
+  # 4. Database Optimizer
   claude "/database-optimizer
-Review database usage in the WordPress plugin at: $PLUGIN_PATH
-Check: N+1 patterns, missing indexes, raw SQL without prepare(), autoload bloat.
-List fixes with SQL examples. Output markdown." \
+Review all database usage in the WordPress plugin at: $PLUGIN_PATH
+Check: N+1 query patterns, missing indexes, raw SQL without wpdb->prepare(), autoload bloat, transient misuse.
+List every fix with corrected SQL examples where applicable.
+Output a full markdown report with a severity summary table at the top." \
     > "$SKILL_REPORT_DIR/database.md" 2>/dev/null &
   PID_DB=$!
 
-  # Wait for all 4 to finish
-  wait $PID_WP $PID_SEC $PID_PERF $PID_DB 2>/dev/null
+  # 5. Accessibility (WCAG 2.2 AA)
+  claude "/accessibility-compliance-accessibility-audit
+Audit the WordPress plugin at: $PLUGIN_PATH for accessibility compliance.
+Check: admin UI keyboard navigation, ARIA roles/labels, color contrast, focus management, screen reader output, block editor output.
+Standard: WCAG 2.2 AA. Rate each issue Critical / High / Medium / Low.
+Output a full markdown report with a severity summary table at the top." \
+    > "$SKILL_REPORT_DIR/accessibility.md" 2>/dev/null &
+  PID_A11Y=$!
+
+  # 6. Code Quality Review
+  claude "/code-review-excellence
+Review the code quality of the WordPress plugin at: $PLUGIN_PATH
+Check: dead code, cyclomatic complexity, error handling gaps, type safety, readability, PHP 8.x compatibility.
+Rate each issue High / Medium / Low. Include refactor suggestions.
+Output a full markdown report with a severity summary table at the top." \
+    > "$SKILL_REPORT_DIR/code-quality.md" 2>/dev/null &
+  PID_CQ=$!
+
+  # Wait for all 6
+  wait $PID_WP $PID_SEC $PID_PERF $PID_DB $PID_A11Y $PID_CQ 2>/dev/null
 
   # Report results
   SKILL_FILES=$(ls "$SKILL_REPORT_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+  SKILL_HTML="$SKILL_REPORT_DIR/index.html"
+
   if [ "$SKILL_FILES" -gt 0 ]; then
-    ok "Skill audits complete — $SKILL_FILES reports in $SKILL_REPORT_DIR/"
-    log "- ✓ Skill audits: $SKILL_REPORT_DIR/"
+    ok "Skill audits complete — $SKILL_FILES reports written"
+    log "- ✓ Skill audits: $SKILL_FILES markdown reports in $SKILL_REPORT_DIR/"
     ((PASS++))
 
-    # Count critical security findings across all reports
-    CRIT=$(grep -rli "Critical\|CRITICAL" "$SKILL_REPORT_DIR/" 2>/dev/null | wc -l | tr -d ' ')
+    # ── Generate consolidated HTML report ─────────────────────────────────────
+    python3 - <<PYEOF
+import os, re, html, datetime
+
+skill_dir = "$SKILL_REPORT_DIR"
+plugin_name = "$PLUGIN_NAME"
+timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+# Map filename → display label
+skill_labels = {
+    "wp-standards.md":   ("WP Standards",  "#3b82f6"),
+    "security.md":       ("Security",      "#ef4444"),
+    "performance.md":    ("Performance",   "#f59e0b"),
+    "database.md":       ("Database",      "#8b5cf6"),
+    "accessibility.md":  ("Accessibility", "#10b981"),
+    "code-quality.md":   ("Code Quality",  "#6366f1"),
+}
+
+sev_pat = re.compile(r'\b(Critical|High|Medium|Low)\b', re.IGNORECASE)
+sev_colors = {"critical":"#ef4444","high":"#f97316","medium":"#eab308","low":"#22c55e"}
+
+def md_to_html(text):
+    """Minimal markdown → HTML: headers, bold, code, hr, lists, severity badges."""
+    lines = text.split('\n')
+    out = []
+    in_code = False
+    in_table = False
+    for line in lines:
+        # Fenced code blocks
+        if line.strip().startswith('```'):
+            if in_code:
+                out.append('</code></pre>')
+                in_code = False
+            else:
+                lang = line.strip()[3:].strip()
+                out.append(f'<pre><code class="lang-{html.escape(lang)}">')
+                in_code = True
+            continue
+        if in_code:
+            out.append(html.escape(line))
+            continue
+        # Table detection
+        if '|' in line and line.strip().startswith('|'):
+            if not in_table:
+                out.append('<table>')
+                in_table = True
+            cells = [c.strip() for c in line.strip().strip('|').split('|')]
+            if all(re.match(r'^[-: ]+$', c) for c in cells):
+                continue  # separator row
+            tag = 'th' if not any(out[-1].startswith('<tr') for _ in [1]) else 'td'
+            out.append('<tr>' + ''.join(f'<td>{html.escape(c)}</td>' for c in cells) + '</tr>')
+            continue
+        elif in_table:
+            out.append('</table>')
+            in_table = False
+        # Headers
+        m = re.match(r'^(#{1,6})\s+(.*)', line)
+        if m:
+            lvl = len(m.group(1))
+            txt = html.escape(m.group(2))
+            out.append(f'<h{lvl}>{txt}</h{lvl}>')
+            continue
+        # HR
+        if re.match(r'^---+$', line.strip()):
+            out.append('<hr>')
+            continue
+        # List items
+        m2 = re.match(r'^(\s*[-*+]|\s*\d+\.)\s+(.*)', line)
+        if m2:
+            txt = html.escape(m2.group(2))
+            txt = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', txt)
+            txt = re.sub(r'`(.*?)`', r'<code>\1</code>', txt)
+            # Severity badge
+            def badge(m):
+                sev = m.group(1).lower()
+                col = sev_colors.get(sev, "#888")
+                return f'<span class="badge" style="background:{col}">{m.group(1)}</span>'
+            txt = sev_pat.sub(badge, txt)
+            out.append(f'<li>{txt}</li>')
+            continue
+        # Paragraph
+        if line.strip():
+            txt = html.escape(line)
+            txt = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', txt)
+            txt = re.sub(r'`(.*?)`', r'<code>\1</code>', txt)
+            def badge(m):
+                sev = m.group(1).lower()
+                col = sev_colors.get(sev, "#888")
+                return f'<span class="badge" style="background:{col}">{m.group(1)}</span>'
+            txt = sev_pat.sub(badge, txt)
+            out.append(f'<p>{txt}</p>')
+        else:
+            out.append('')
+    if in_code:
+        out.append('</code></pre>')
+    if in_table:
+        out.append('</table>')
+    return '\n'.join(out)
+
+# Count severity totals across all files
+total_counts = {"critical":0,"high":0,"medium":0,"low":0}
+sections = []
+for fname, (label, color) in skill_labels.items():
+    fpath = os.path.join(skill_dir, fname)
+    if not os.path.exists(fpath):
+        continue
+    with open(fpath) as f:
+        content = f.read()
+    for sev in total_counts:
+        total_counts[sev] += len(re.findall(sev, content, re.IGNORECASE))
+    body_html = md_to_html(content)
+    sections.append((label, color, fname, body_html))
+
+# Build nav tabs
+nav = ''.join(
+    f'<button class="tab-btn" data-target="tab-{i}" style="border-top:3px solid {color}">{label}</button>'
+    for i, (label, color, _, _) in enumerate(sections)
+)
+
+# Build tab panels
+panels = ''.join(
+    f'<div class="tab-panel" id="tab-{i}"><div class="skill-body">{body}</div></div>'
+    for i, (_, _, _, body) in enumerate(sections)
+)
+
+sev_bar = ''.join(
+    f'<span class="sev-chip" style="background:{sev_colors[s]}">{total_counts[s]} {s.title()}</span>'
+    for s in ["critical","high","medium","low"]
+)
+
+html_out = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orbit Skill Audit — {html.escape(plugin_name)}</title>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6}}
+  header{{background:#1e293b;padding:20px 32px;border-bottom:1px solid #334155}}
+  header h1{{font-size:1.4rem;font-weight:700;color:#f8fafc}}
+  header p{{color:#94a3b8;font-size:.875rem;margin-top:4px}}
+  .sev-bar{{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}}
+  .sev-chip{{padding:3px 10px;border-radius:999px;font-size:.75rem;font-weight:600;color:#fff}}
+  .tabs{{display:flex;gap:0;overflow-x:auto;background:#1e293b;border-bottom:1px solid #334155;padding:0 32px}}
+  .tab-btn{{padding:12px 18px;background:none;border:none;border-top:3px solid transparent;color:#94a3b8;cursor:pointer;font-size:.85rem;font-weight:500;white-space:nowrap;transition:color .15s}}
+  .tab-btn:hover,.tab-btn.active{{color:#f8fafc}}
+  .tab-btn.active{{background:#0f172a}}
+  .tab-panel{{display:none;padding:32px;max-width:1200px;margin:0 auto}}
+  .tab-panel.active{{display:block}}
+  .skill-body h1{{font-size:1.5rem;margin:24px 0 8px;color:#f8fafc}}
+  .skill-body h2{{font-size:1.2rem;margin:20px 0 8px;color:#e2e8f0;padding-bottom:4px;border-bottom:1px solid #334155}}
+  .skill-body h3{{font-size:1rem;margin:16px 0 6px;color:#cbd5e1}}
+  .skill-body h4,.skill-body h5,.skill-body h6{{margin:12px 0 4px;color:#94a3b8}}
+  .skill-body p{{margin:8px 0;color:#cbd5e1}}
+  .skill-body li{{margin:4px 0 4px 20px;color:#cbd5e1}}
+  .skill-body pre{{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:16px;overflow-x:auto;margin:12px 0}}
+  .skill-body code{{font-family:'JetBrains Mono',monospace;font-size:.82rem;color:#7dd3fc}}
+  .skill-body p code,.skill-body li code{{background:#1e293b;padding:1px 5px;border-radius:3px;color:#7dd3fc}}
+  .skill-body hr{{border:none;border-top:1px solid #334155;margin:20px 0}}
+  .skill-body strong{{color:#f8fafc}}
+  .skill-body table{{width:100%;border-collapse:collapse;margin:12px 0;font-size:.85rem}}
+  .skill-body td,.skill-body th{{border:1px solid #334155;padding:8px 12px;text-align:left}}
+  .skill-body th{{background:#1e293b;color:#f8fafc;font-weight:600}}
+  .skill-body tr:nth-child(even){{background:#1a2744}}
+  .badge{{padding:1px 8px;border-radius:999px;font-size:.72rem;font-weight:700;color:#fff}}
+  footer{{text-align:center;padding:24px;color:#475569;font-size:.8rem;border-top:1px solid #1e293b}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Orbit Skill Audit Report</h1>
+  <p>Plugin: <strong>{html.escape(plugin_name)}</strong> &nbsp;·&nbsp; Generated: {timestamp_str} &nbsp;·&nbsp; {len(sections)} skills run</p>
+  <div class="sev-bar">{sev_bar}</div>
+</header>
+<div class="tabs">{nav}</div>
+<div class="panels">{panels}</div>
+<footer>Generated by <strong>Orbit</strong> — WordPress Plugin QA Framework</footer>
+<script>
+  const btns = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.tab-panel');
+  function activate(i) {{
+    btns.forEach((b,j) => b.classList.toggle('active', i===j));
+    panels.forEach((p,j) => p.classList.toggle('active', i===j));
+  }}
+  btns.forEach((b,i) => b.addEventListener('click', () => activate(i)));
+  activate(0);
+</script>
+</body>
+</html>"""
+
+with open("$SKILL_HTML", "w") as f:
+    f.write(html_out)
+print("HTML report written.")
+PYEOF
+
+    if [ -f "$SKILL_HTML" ]; then
+      ok "Skill audit HTML report: $SKILL_HTML"
+      log "- ✓ Skill audit HTML: $SKILL_HTML"
+      echo -e "  ${CYAN}Open:${NC} open $(pwd)/$SKILL_HTML"
+    else
+      warn "HTML generation failed — markdown reports still available in $SKILL_REPORT_DIR/"
+      log "- ⚠ Skill audit HTML: generation failed (markdown reports available)"
+    fi
+
+    # Surface critical findings
+    CRIT=$(grep -rl "Critical\|CRITICAL" "$SKILL_REPORT_DIR/"*.md 2>/dev/null | wc -l | tr -d ' ')
     if [ "$CRIT" -gt 0 ]; then
-      warn "Critical findings in skill audits — review $SKILL_REPORT_DIR/security.md before release"
+      warn "Critical findings found — review $SKILL_REPORT_DIR/security.md before release"
+      log "- ⚠ Critical findings in $CRIT skill report(s)"
       ((WARN++))
     fi
   else
@@ -440,9 +672,9 @@ List fixes with SQL examples. Output markdown." \
     log "- ⚠ Skill audits: no output"
     ((WARN++))
   fi
-elif [ "$MODE" = "full" ] && [ ! -z "$PLUGIN_PATH" ]; then
-  echo -e "  ${YELLOW}Skill audits: claude CLI not found. Install with: npm install -g @anthropic-ai/claude-code${NC}"
-  echo -e "  ${YELLOW}Then re-run gauntlet for automated /wordpress-penetration-testing and /performance-engineer audits.${NC}"
+elif [ "$MODE" = "full" ] && [ -n "$PLUGIN_PATH" ]; then
+  echo -e "  ${YELLOW}Skill audits: claude CLI not found. Install: npm install -g @anthropic-ai/claude-code${NC}"
+  echo -e "  ${YELLOW}Re-run gauntlet after install for all 6 automated skill audits.${NC}"
 fi
 
 # ── FINAL REPORT ──────────────────────────────────────────────────────────────
@@ -470,15 +702,15 @@ if [ -d "reports/screenshots/flows-compare" ] && ls reports/screenshots/flows-co
 fi
 
 echo -e "${BOLD}Reports generated:${NC}"
-echo "  MD report:    $(pwd)/$REPORT_FILE"
-echo "  HTML report:  $(pwd)/reports/playwright-html/index.html"
-echo "  Screenshots:  $(pwd)/reports/screenshots/"
-echo "  Videos:       $(pwd)/reports/videos/"
-[ -d "reports/skill-audits" ] && echo "  Skill audits: $(pwd)/reports/skill-audits/"
-for f in reports/uat-report-*.html; do [ -f "$f" ] && echo "  UAT report:   $(pwd)/$f"; done
+echo "  MD report:      $(pwd)/$REPORT_FILE"
+echo "  Playwright:     $(pwd)/reports/playwright-html/index.html"
+echo "  Screenshots:    $(pwd)/reports/screenshots/"
+echo "  Videos:         $(pwd)/reports/videos/"
+[ -f "reports/skill-audits/index.html" ] && echo "  Skill audits:   $(pwd)/reports/skill-audits/index.html"
+for f in reports/uat-report-*.html; do [ -f "$f" ] && echo "  UAT report:     $(pwd)/$f"; done
 echo ""
-echo -e "${CYAN}Open HTML report:${NC}  npx playwright show-report reports/playwright-html"
-echo -e "${CYAN}Open skill audits:${NC} open reports/skill-audits/"
+echo -e "${CYAN}View Playwright:${NC}   npx playwright show-report reports/playwright-html"
+echo -e "${CYAN}View skill audits:${NC} open reports/skill-audits/index.html"
 echo ""
 
 if [ "$FAIL" -gt 0 ]; then
