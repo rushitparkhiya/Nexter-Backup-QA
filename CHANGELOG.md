@@ -8,6 +8,91 @@ All notable changes to Orbit follow [Keep a Changelog](https://keepachangelog.co
 
 ---
 
+## [2.2.0] — 2026-04-21 — "Mature Release"
+
+The release where Orbit closes every deep-research gap. Covers WP.org
+plugin-check canonical rules, Patchstack 2025 top-5 vuln classes, WP 6.5→7.0
+features, PHP 8.0→8.5 compatibility, and the April 2026 EssentialPlugin
+supply-chain attack patterns.
+
+### Added — Foundation
+- `VISION.md` — anchor doc with 6 perspectives (Dev/QA/PM/PA/Designer/End User), 7 smart principles, evergreen research loop
+- `docs/22-what-orbit-does.md` — shareable overview
+- `docs/21-evergreen-security.md` — living attack-pattern log, 90-day research cadence (SHIPPED / RESEARCHING / WATCHING)
+- `docs/20-auto-test-generation.md` — how Orbit reads plugin code
+- `docs/19-business-logic-guide.md` — plugin-specific testing on top of Orbit
+- `docs/18-release-checklist.md` — complete pre-tag gate for all 6 roles
+- `docs/17-whats-new.md` — v2 demo doc
+- `docs/16-master-audit.md` — master audit + antigravity skill mappings
+- `.github/workflows/ci.yml` — lean self-validation workflow + brand-leakage enforcement
+- `.githooks/pre-commit` + `install-pre-commit-hook.sh`
+
+### Added — Release gate checks (9 new scripts)
+- `check-plugin-header.sh` · `check-readme-txt.sh` · `check-version-parity.sh`
+- `check-license.sh` · `check-block-json.sh` · `check-hpos-declaration.sh`
+- `check-wp-compat.sh` — WP function version gate against declared "Requires at least"
+- `check-php-compat.sh` — PHP 8.0-8.5: removed functions, implicit nullable, property hooks, `array_find` family, `mb_trim`, E_STRICT removal
+- `check-modern-wp.sh` — Script Modules, Interactivity API, Plugin Dependencies, Site Health, Block Bindings, custom updater detection, external menu links
+
+### Added — Dev workflow
+- `scaffold-tests.sh` — reads plugin code, generates `qa.config.json` + 40-80 scenarios + draft spec
+- `gauntlet-dry-run.sh` · `generate-reports-index.py`
+- `/orbit-scaffold-tests` custom skill — AI-augmented scenario writer (via `--deep`)
+
+### Added — Playwright projects (14 new specs)
+- UX states: `empty-states` · `error-states` · `loading-states` · `form-validation`
+- Lifecycle: `uninstall-cleanup` · `update-path` · `block-deprecation`
+- Accessibility: `keyboard-nav` · `admin-color-schemes` · `rtl-layout`
+- Network: `multisite-activation` · `app-passwords`
+- Modern: `wp7-connectors` · `plugin-conflict` (top-20 matrix)
+- PM/PA: `user-journey` · `onboarding-ftue` · `analytics-events`
+- Visual: `visual-regression-release` (diff vs previous git tag)
+- Performance: `bundle-size` (per-page JS/CSS enforcement)
+- Cross-browser projects: `firefox` · `webkit`
+
+### Added — Custom Claude skills (4 WP-native)
+- `/orbit-wp-security` — **22 vulnerability patterns** (+5 for April 2026):
+  - #18 `unserialize()` on HTTP responses (EssentialPlugin attack)
+  - #19 `permission_callback => __return_true` on sensitive routes
+  - #20 `register_setting()` missing `sanitize_callback`
+  - #21 callable property injection gadget chain
+  - #22 external admin menu URLs
+- `/orbit-wp-performance` — 14 patterns (+script loading strategy, Script Modules dynamic deps, block metadata bulk registration, per-page CSS weight)
+- `/orbit-wp-database` — `$wpdb`, dbDelta, autoload, uninstall cleanup
+- `/orbit-wp-standards` — review-mode WP coding standards
+- `deep-research` skill — rewritten Claude-native (WebSearch + WebFetch)
+
+### Changed
+- Replaced 4 mismatched community skills in AGENTS.md:
+  - `/wordpress-penetration-testing` (attacker tool) → `/security-auditor` + `/security-scanning-security-sast`
+  - `/performance-engineer` (cloud infra) → `/orbit-wp-performance` + `/web-performance-optimization`
+  - `/database-optimizer` (enterprise DBA) → `/orbit-wp-database`
+  - `/wordpress-plugin-development` (scaffolder) → `/orbit-wp-standards`
+- Gauntlet Step 11: per-PID `wait` loop + per-skill `.err` file (was silent failure on Claude CLI errors)
+- `check-zip-hygiene.sh` expanded: AI dev dirs (`.cursor`, `.aider`, `.continue`, `.claude`, `.windsurf`, `.codex`, `.fleet`, `.zed`, `.github/copilot-*`), OS artifacts, editor backups, obfuscation (hex + `chr()` chains), `ALLOW_UNFILTERED_UPLOADS`
+- Gauntlet: new release gate wiring for all 9 release-metadata checks
+
+### Removed
+- `.github/workflows/gauntlet.yml` — overbuilt for the framework repo itself; full gauntlet workflow now lives as a copy-paste template in `docs/15-ci-cd.md` for users' plugin repos
+
+### Fixed (identified by 3-agent review + self-testing)
+- Orphaned `/orbit-wp-security` skill — AGENTS.md referenced it, gauntlet.sh invoked `/security-auditor` instead
+- `wait $P1 $P2 ...` returning only last PID's status → multiple failures reported as success
+- `2>/dev/null` swallowing Claude CLI errors
+- `check-translation.sh` / `check-object-cache.sh` / `check-zip-hygiene.sh` — empty-var arithmetic crash under `set -e` (`grep -c \|\| echo 0` producing `"0\n0"`)
+- `uninstall-cleanup.spec.js` — wp-cli `--search` uses `*` glob, not `%` SQL wildcard (was: test always passed)
+- `keyboard-nav.spec.js` — focus-indicator check always-true no-op (`style.border !== 'none'`)
+- `plugin-conflict.spec.js` — debug.log path was host path; fixed to use `WP_CONTENT_DIR` inside container
+- `wp7-connectors.spec.js` — rewritten against real WP 7.0 API (`WP_Ability` class + `abilities_api_init` + `wp_execute_ability`) — previous version invented fake functions and always skipped (false green)
+- `scaffold-tests.sh` — same `grep -c` anti-pattern + Python boolean heredoc fixes
+- `base64_decode` / `base64_encode` moved from hard-fail to WARN (WP core uses these legitimately)
+- `deep-research` skill — no longer requires external Gemini API / Python dependency
+
+### Security
+- **Evergreen research loop established.** `docs/21-evergreen-security.md` is the living record. Next quarterly pass: July 2026.
+
+---
+
 ## [2.1.0] — 2026-04-20
 
 ### Fixed (Critical — brand content in public repo)
