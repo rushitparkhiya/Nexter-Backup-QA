@@ -10,6 +10,7 @@ set -e
 PLUGIN_PATH=""
 ENV="local"
 MODE="full"
+INSTALL_TYPE=""
 REPORT_DIR="reports"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 REPORT_FILE="$REPORT_DIR/qa-report-$TIMESTAMP.md"
@@ -25,9 +26,10 @@ log()    { echo "$1" >> "$REPORT_FILE"; }
 # Parse args
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-    --plugin) PLUGIN_PATH="$2"; shift ;;
-    --env)    ENV="$2"; shift ;;
-    --mode)   MODE="$2"; shift ;;
+    --plugin)  PLUGIN_PATH="$2"; shift ;;
+    --env)     ENV="$2"; shift ;;
+    --mode)    MODE="$2"; shift ;;
+    --install) INSTALL_TYPE="$2"; shift ;;  # fresh|update — skips prompt in CI
   esac
   shift
 done
@@ -57,6 +59,32 @@ echo ""
 echo -e "${BOLD}Orbit — Pre-Release Gauntlet${NC}"
 echo -e "Plugin: ${YELLOW}$PLUGIN_NAME${NC} | Mode: $MODE | Env: $ENV"
 echo "================================================"
+
+# ── STEP 0: Install context prompt ────────────────────────────────────────────
+# Different risk profile: fresh installs can have DB migration issues;
+# updates must preserve existing user data. Knowing which we're testing
+# lets Orbit adjust what to flag as critical vs expected.
+if [ -z "$INSTALL_TYPE" ] && [ -t 0 ]; then
+  echo ""
+  echo -e "${BOLD}  Step 0: What are you testing?${NC}"
+  echo "    [1] Fresh install — testing on a clean WordPress site"
+  echo "    [2] Plugin update — testing upgrade from a previous version"
+  echo "    [3] Skip (run all checks)"
+  echo ""
+  read -rp "  Enter 1, 2, or 3 [3]: " install_choice
+  case "${install_choice:-3}" in
+    1) INSTALL_TYPE="fresh" ;;
+    2) INSTALL_TYPE="update" ;;
+    *) INSTALL_TYPE="full" ;;
+  esac
+fi
+
+if [ "$INSTALL_TYPE" = "fresh" ]; then
+  echo -e "  ${CYAN}Mode: Fresh install — will emphasize activation hooks, DB table creation, defaults${NC}"
+elif [ "$INSTALL_TYPE" = "update" ]; then
+  echo -e "  ${CYAN}Mode: Plugin update — will emphasize data migration, setting preservation, schema upgrade${NC}"
+fi
+echo ""
 
 PASS=0; WARN=0; FAIL=0
 
@@ -186,6 +214,28 @@ else
     ((FAIL++))
   else
     log "- ⚠ Zip hygiene: warnings (review above)"
+    ((WARN++))
+  fi
+fi
+
+# ── STEP 1c: CODE DOCUMENTATION QUALITY ──────────────────────────────────────
+# PHPDoc coverage, @since tags, @param/@return, TODO tracking, CHANGELOG sync.
+# Runs in full mode. Exit 0=pass, 2=warnings (no hard failures possible).
+if [ "$MODE" = "full" ] || [ "$MODE" = "release" ]; then
+  header "Step 1c: Code Documentation Quality"
+  log "## Step 1c: Code Docs"
+
+  DOCS_EXIT=0
+  PLUGIN_VERSION=$(grep -r "Version:" "$PLUGIN_PATH"/*.php 2>/dev/null | \
+    grep -oE "[0-9]+\.[0-9]+(\.[0-9]+)?" | head -1 || echo "")
+
+  bash scripts/check-code-docs.sh "$PLUGIN_PATH" ${PLUGIN_VERSION:+--version "$PLUGIN_VERSION"} 2>&1 || DOCS_EXIT=$?
+
+  if [ "$DOCS_EXIT" -eq 0 ]; then
+    log "- ✓ Code docs: all checks passed"
+    ((PASS++))
+  else
+    log "- ⚠ Code docs: documentation gaps found (review before release)"
     ((WARN++))
   fi
 fi
@@ -378,6 +428,38 @@ if command -v npx &>/dev/null && [ -f "$PW_CONFIG" ]; then
   echo -e "  ${CYAN}HTML report:${NC} $(pwd)/$HTML_REPORT"
   echo -e "  ${CYAN}View with:${NC} npx playwright show-report reports/playwright-html"
 
+  # ── STEP 6a: PM UX + GDPR + Asset Leak flows ──────────────────────────────
+  # Run the dedicated PM/GDPR specs as part of the Playwright phase.
+  # These always run as "warn-only" — no hard failures from this group.
+  PLUGIN_SLUG=$(basename "$PLUGIN_PATH")
+  PM_SPECS="tests/playwright/flows"
+  if [ -d "$PM_SPECS" ]; then
+    PM_SPEC_LIST=$(find "$PM_SPECS" -name "*.spec.js" | sort | tr '\n' ',' | sed 's/,$//')
+    if [ -n "$PM_SPEC_LIST" ]; then
+      echo ""
+      echo -e "  ${CYAN}Running PM/GDPR/asset-leak flow specs...${NC}"
+
+      ADMIN_SLUG=$(python3 -c "import json; print(json.load(open('qa.config.json')).get('plugin',{}).get('admin_slug',''))" 2>/dev/null || echo "$PLUGIN_SLUG")
+      HAS_FORMS=$(python3 -c "import json; print(str(json.load(open('qa.config.json')).get('plugin',{}).get('has_email_forms',False)).lower())" 2>/dev/null || echo "false")
+      ACTIVE_PAGES=$(python3 -c "import json; print(','.join(json.load(open('qa.config.json')).get('plugin',{}).get('frontend_active_pages',[])))" 2>/dev/null || echo "")
+
+      PLUGIN_SLUG="$PLUGIN_SLUG" \
+      PLUGIN_ADMIN_SLUG="$ADMIN_SLUG" \
+      PLUGIN_HAS_EMAIL_FORMS="$HAS_FORMS" \
+      PLUGIN_ACTIVE_PAGES="$ACTIVE_PAGES" \
+      WP_TEST_URL="${WP_TEST_URL:-http://localhost:8881}" \
+        npx playwright test --config="$PW_CONFIG" \
+        --grep-invert "cookie-consent|opt-out" \
+        "$PM_SPECS" \
+        --reporter=line 2>&1 | tail -10 || true
+
+      PM_REPORT_DIR="reports/pm-ux"
+      PM_JSON_COUNT=$(ls "$PM_REPORT_DIR"/*.json 2>/dev/null | wc -l | tr -d ' ')
+      ok "PM/GDPR flow specs: $PM_JSON_COUNT report(s) written to $PM_REPORT_DIR/"
+      log "- ✓ PM/GDPR flows: $PM_JSON_COUNT JSON reports"
+    fi
+  fi
+
   # ── STEP 6b: Flow comparison videos (feeds PM HTML report) ─────────────────
   FLOW_SPECS=$(find tests/playwright/flows -name "*.spec.js" 2>/dev/null | wc -l | tr -d ' ')
   if [ "$FLOW_SPECS" -gt 0 ]; then
@@ -500,6 +582,20 @@ print(int(d['categories']['performance']['score']*100))
         log "- ⚠ Lighthouse: $SCORE/100"
         ((WARN++))
       fi
+
+      # ── Attribution: map slow resources back to plugin files ─────────────────
+      ATTR_OUT="reports/lighthouse/attribution-$TIMESTAMP.md"
+      python3 scripts/lighthouse-attribution.py \
+        --report "reports/lighthouse/lh-$TIMESTAMP.json" \
+        --slug "$(basename "$PLUGIN_PATH")" \
+        --out "$ATTR_OUT" 2>/dev/null && {
+        ok "Lighthouse attribution: $ATTR_OUT"
+        log "- ✓ Lighthouse attribution: $ATTR_OUT"
+        echo -e "  ${CYAN}Open:${NC} open $(pwd)/$ATTR_OUT"
+      } || {
+        warn "Lighthouse attribution: run manually: python3 scripts/lighthouse-attribution.py"
+        log "- ⚠ Lighthouse attribution: failed"
+      }
     fi
   else
     warn "Lighthouse not installed — skipping. Install: npm install -g lighthouse"
@@ -599,17 +695,47 @@ if [ "$MODE" = "full" ] && [ "$ENV" = "local" ]; then
   fi
 fi
 
-# ── STEP 8d: GDPR / WordPress Privacy API Check ───────────────────────────────
-# WP 4.9.6+ requires plugins storing user data to register privacy hooks.
-# WordPress.org plugin review will reject plugins missing these hooks.
+# ── STEP 8d: Full GDPR Compliance Check ───────────────────────────────────────
+# Covers: WP Privacy API hooks, cookie declaration, third-party scripts,
+# email collection opt-in, data encryption, data minimization, uninstall cleanup,
+# CCPA/GPC signals. Exit 0=pass, 1=fail (missing required hooks), 2=warnings.
 if [ "$MODE" = "full" ]; then
-  header "Step 8d: GDPR / Privacy API"
+  header "Step 8d: GDPR Full Compliance"
   log "## Step 8d: GDPR"
-  if bash scripts/check-gdpr-hooks.sh "$PLUGIN_PATH" 2>&1; then
-    log "- ✓ GDPR hooks: present or not required"
+
+  GDPR_EXIT=0
+  bash scripts/check-gdpr-full.sh "$PLUGIN_PATH" 2>&1 || GDPR_EXIT=$?
+
+  if [ "$GDPR_EXIT" -eq 0 ]; then
+    log "- ✓ GDPR: all checks passed"
     ((PASS++))
+  elif [ "$GDPR_EXIT" -eq 1 ]; then
+    log "- ✗ GDPR: required Privacy API hooks missing — WP.org will reject"
+    ((FAIL++))
   else
-    log "- ⚠ GDPR: required Privacy API hooks missing"
+    log "- ⚠ GDPR: warnings found — review before release"
+    ((WARN++))
+  fi
+fi
+
+# ── STEP 8d2: Database Schema Review ──────────────────────────────────────────
+# Checks: CREATE TABLE vs existing WP tables, dbDelta() usage, index coverage,
+# wp_options autoload audit, schema versioning, transient expiry, object cache.
+if [ "$MODE" = "full" ]; then
+  header "Step 8d2: Database Schema Review"
+  log "## Step 8d2: DB Schema"
+
+  DB_EXIT=0
+  bash scripts/check-db-schema.sh "$PLUGIN_PATH" 2>&1 || DB_EXIT=$?
+
+  if [ "$DB_EXIT" -eq 0 ]; then
+    log "- ✓ DB schema: all checks passed"
+    ((PASS++))
+  elif [ "$DB_EXIT" -eq 1 ]; then
+    log "- ✗ DB schema: critical issue (CREATE TABLE without dbDelta)"
+    ((FAIL++))
+  else
+    log "- ⚠ DB schema: warnings found — review schema decisions"
     ((WARN++))
   fi
 fi
@@ -749,21 +875,44 @@ if [ "$MODE" = "full" ] && [ "$ENV" = "local" ] && command -v npx &>/dev/null; t
   fi
 fi
 
-# ── STEP 9: COMPETITOR COMPARISON (auto from qa.config.json) ──────────────────
+# ── STEP 9: COMPETITOR COMPARISON + VULNERABILITY INTELLIGENCE ────────────────
 if [ -f "qa.config.json" ]; then
-  COMPETITORS_JSON=$(python3 -c "import json; c=json.load(open('qa.config.json')).get('competitors',[]); print(','.join(c))" 2>/dev/null || echo "")
+  COMPETITORS_JSON=$(python3 -c "
+import json
+c = json.load(open('qa.config.json')).get('competitors', [])
+slugs = [s if isinstance(s, str) else s.get('slug', s.get('name','')) for s in c]
+print(','.join(slugs))
+" 2>/dev/null || echo "")
+
   if [ -n "$COMPETITORS_JSON" ]; then
-    header "Step 9: Competitor Comparison"
-    log "## Step 9: Competitor Comparison"
+    header "Step 9: Competitor Comparison + Vulnerability Intelligence"
+    log "## Step 9: Competitor Analysis"
+
+    # 9a: Feature/UX comparison
     bash scripts/competitor-compare.sh 2>/dev/null && {
-      ok "Competitor analysis complete — see reports/competitor-*.md"
-      log "- ✓ Competitor: see reports/competitor-*.md"
+      ok "Competitor feature comparison — see reports/competitor-*.md"
+      log "- ✓ Competitor compare: see reports/competitor-*.md"
       ((PASS++))
     } || {
-      warn "Competitor analysis failed — run manually: bash scripts/competitor-compare.sh"
-      log "- ⚠ Competitor: failed"
+      warn "Competitor feature comparison failed — run: bash scripts/competitor-compare.sh"
+      log "- ⚠ Competitor compare: failed"
       ((WARN++))
     }
+
+    # 9b: CVE intelligence — what vulnerabilities did competitors have?
+    echo ""
+    VULN_EXIT=0
+    bash scripts/check-competitor-vulns.sh "$PLUGIN_PATH" 2>&1 || VULN_EXIT=$?
+
+    if [ "$VULN_EXIT" -eq 0 ]; then
+      ok "Competitor CVE intelligence: no matching risk patterns"
+      log "- ✓ Competitor CVE intel: clean"
+      ((PASS++))
+    else
+      warn "Competitor CVE intelligence: matching patterns found — see reports/competitor-vulns-*.md"
+      log "- ⚠ Competitor CVE intel: risk patterns found — review report"
+      ((WARN++))
+    fi
   fi
 fi
 
@@ -1236,13 +1385,16 @@ if [ -d "reports/screenshots/flows-compare" ] && ls reports/screenshots/flows-co
 fi
 
 echo -e "${BOLD}Reports generated:${NC}"
-echo "  MD report:      $(pwd)/$REPORT_FILE"
-echo "  Playwright:     $(pwd)/reports/playwright-html/index.html"
-echo "  Screenshots:    $(pwd)/reports/screenshots/"
-echo "  Videos:         $(pwd)/reports/videos/"
-[ -f "reports/skill-audits/index.html" ] && echo "  Skill audits:   $(pwd)/reports/skill-audits/index.html"
-for f in reports/uat-report-*.html; do [ -f "$f" ] && echo "  UAT report:     $(pwd)/$f"; done
-for f in reports/pm-ux/pm-ux-report-*.html; do [ -f "$f" ] && echo "  PM UX report:   $(pwd)/$f"; done
+echo "  MD report:       $(pwd)/$REPORT_FILE"
+echo "  Playwright:      $(pwd)/reports/playwright-html/index.html"
+echo "  Screenshots:     $(pwd)/reports/screenshots/"
+echo "  Videos:          $(pwd)/reports/videos/"
+[ -f "reports/skill-audits/index.html" ] && echo "  Skill audits:    $(pwd)/reports/skill-audits/index.html"
+for f in reports/uat-report-*.html; do [ -f "$f" ] && echo "  UAT report:      $(pwd)/$f"; done
+for f in reports/pm-ux/pm-ux-report-*.html; do [ -f "$f" ] && echo "  PM UX report:    $(pwd)/$f"; done
+for f in reports/pm-ux/*.json; do [ -f "$f" ] && echo "  PM/GDPR flows:   $(pwd)/$f" && break; done
+for f in reports/lighthouse/attribution-*.md; do [ -f "$f" ] && echo "  LH attribution:  $(pwd)/$f" && break; done
+for f in reports/competitor-vulns-*.md; do [ -f "$f" ] && echo "  CVE intel:       $(pwd)/$f" && break; done
 echo ""
 echo -e "${CYAN}View Playwright:${NC}   npx playwright show-report reports/playwright-html"
 echo -e "${CYAN}View skill audits:${NC} open reports/skill-audits/index.html"
