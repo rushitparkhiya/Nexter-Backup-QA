@@ -32,7 +32,7 @@ Covers **Elementor Addons · Gutenberg Blocks · SEO Plugins · WooCommerce Exte
 
 <br />
 
-[Quick Start](#quick-start) · [What It Checks](#what-it-checks) · [Skills Reference](SKILLS.md) · [Auto-Generate Tests](docs/20-auto-test-generation.md) · [Business Logic Guide](docs/19-business-logic-guide.md) · [GitHub](https://github.com/adityaarsharma/orbit) · [Common WP Mistakes](docs/common-wp-mistakes.md)
+[Quick Start](#quick-start) · [What It Checks](#what-it-checks) · [**Role Guide**](docs/onboarding-by-role.md) · [Skills Reference](SKILLS.md) · [Auto-Generate Tests](docs/20-auto-test-generation.md) · [Business Logic Guide](docs/19-business-logic-guide.md) · [GitHub](https://github.com/adityaarsharma/orbit) · [Common WP Mistakes](docs/common-wp-mistakes.md)
 
 </div>
 
@@ -916,6 +916,7 @@ Summary: 6 passed · 1 warning · 0 failed
 ## Docs
 
 - **[GETTING-STARTED.md](GETTING-STARTED.md) — 🌟 the one you should read first**
+- **[docs/onboarding-by-role.md](docs/onboarding-by-role.md) — Role-by-role guide: Dev, QA, PM, PA, Designer, End User — exact commands, what to read, what to sign off**
 - [What is Playwright](docs/what-is-playwright.md) — beginner-friendly primer on browser automation
 - [Writing Tests Guide](docs/writing-tests.md) — practical test-authoring recipes for every plugin type
 - [Real-World QA Cases](docs/real-world-qa.md) — 18 cases most checklists miss (uninstall, upgrade, multisite, GDPR, REST, etc.)
