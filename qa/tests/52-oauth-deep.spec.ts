@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 52-oauth-deep.spec.ts
  * Deep QA: OAuth security beyond the dossier P1 connect flow.
  *
@@ -17,10 +17,10 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── State CSRF ───────────────────────────────────────────────────────────────
-test('@deep OAUTH-001 — Callback with state="bogus" rejected', async ({ page, request }) => {
+// â”€â”€ State CSRF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep OAUTH-001 â€” Callback with state="bogus" rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.get(
+  const res   = await page.request.get(
     `${NS}/backup/destinations/google-drive/oauth/callback?code=fake&state=invalid`,
     { headers: { 'X-WP-Nonce': nonce } },
   );
@@ -33,26 +33,26 @@ test('@deep OAUTH-001 — Callback with state="bogus" rejected', async ({ page, 
   }
 });
 
-test('@deep OAUTH-002 — Callback without state param rejected', async ({ page, request }) => {
+test('@deep OAUTH-002 â€” Callback without state param rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.get(
+  const res   = await page.request.get(
     `${NS}/backup/destinations/google-drive/oauth/callback?code=fake`,
     { headers: { 'X-WP-Nonce': nonce } },
   );
   expect([200, 302, 400, 422]).toContain(res.status());
 });
 
-test('@deep OAUTH-003 — Callback without code param rejected', async ({ page, request }) => {
+test('@deep OAUTH-003 â€” Callback without code param rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.get(
+  const res   = await page.request.get(
     `${NS}/backup/destinations/google-drive/oauth/callback?state=fake`,
     { headers: { 'X-WP-Nonce': nonce } },
   );
   expect([200, 302, 400, 422]).toContain(res.status());
 });
 
-// ── User binding: state from user A cannot be used by user B ─────────────────
-test('@deep OAUTH-004 — State issued by admin cannot be replayed by editor session', async ({ page, request }) => {
+// â”€â”€ User binding: state from user A cannot be used by user B â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep OAUTH-004 â€” State issued by admin cannot be replayed by editor session', async ({ page, request }) => {
   test.skip(
     !process.env.GOOGLE_CLIENT_ID,
     'Set GOOGLE_CLIENT_ID to issue a real state',
@@ -60,7 +60,7 @@ test('@deep OAUTH-004 — State issued by admin cannot be replayed by editor ses
 
   const nonce = await getNonce(page);
   // Issue state as admin
-  const startRes = await apiPost(request, nonce, '/backup/destinations/google-drive/oauth/start', {
+  const startRes = await apiPost(page, nonce, '/backup/destinations/google-drive/oauth/start', {
     client_id:     process.env.GOOGLE_CLIENT_ID,
     client_secret: process.env.GOOGLE_CLIENT_SECRET,
   });
@@ -94,13 +94,13 @@ test('@deep OAUTH-004 — State issued by admin cannot be replayed by editor ses
   await browser2.close();
 });
 
-// ── Rate limit on oauth_start ────────────────────────────────────────────────
-test('@deep OAUTH-005 — POST /backup/destinations/.../oauth/start rate-limited at 20/600s', async ({ page, request }) => {
+// â”€â”€ Rate limit on oauth_start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep OAUTH-005 â€” POST /backup/destinations/.../oauth/start rate-limited at 20/600s', async ({ page, request }) => {
   const nonce = await getNonce(page);
 
   let firstRejection: number | null = null;
   for (let i = 0; i < 25; i++) {
-    const res = await apiPost(request, nonce, '/backup/destinations/google-drive/oauth/start', {
+    const res = await apiPost(page, nonce, '/backup/destinations/google-drive/oauth/start', {
       client_id:     'rate-limit-probe',
       client_secret: 'rate-limit-probe',
     });
@@ -113,12 +113,12 @@ test('@deep OAUTH-005 — POST /backup/destinations/.../oauth/start rate-limited
   }
 });
 
-// ── Pretty redirect after callback ───────────────────────────────────────────
-test('@deep OAUTH-006 — Successful callback redirects to admin.php?page=nxt-backup#/storage/...', async ({ page, request }) => {
-  test.skip(true, 'Requires real OAuth round-trip — covered in TC101');
+// â”€â”€ Pretty redirect after callback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep OAUTH-006 â€” Successful callback redirects to admin.php?page=nxt-backup#/storage/...', async ({ page, request }) => {
+  test.skip(true, 'Requires real OAuth round-trip â€” covered in TC101');
 });
 
-// ── State single-use ─────────────────────────────────────────────────────────
-test('@deep OAUTH-007 — Same state used twice on callback fails second time', async ({ page, request }) => {
+// â”€â”€ State single-use â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep OAUTH-007 â€” Same state used twice on callback fails second time', async ({ page, request }) => {
   test.skip(true, 'Requires capturing valid state from real OAuth flow');
 });

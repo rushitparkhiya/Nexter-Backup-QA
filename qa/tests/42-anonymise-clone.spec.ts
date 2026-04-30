@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 42-anonymise-clone.spec.ts
  * Deep QA: anonymiser + clone-to-staging.
  *
@@ -13,33 +13,33 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── Anonymise endpoint shape ─────────────────────────────────────────────────
-test('@deep ANO-001 — POST /backup/anonymise returns 200 (or 400 on missing target)', async ({ page, request }) => {
+// â”€â”€ Anonymise endpoint shape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ANO-001 â€” POST /backup/anonymise returns 200 (or 400 on missing target)', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await apiPost(request, nonce, '/backup/anonymise', {
+  const res   = await apiPost(page, nonce, '/backup/anonymise', {
     backup_id: 'no-such-id',
   });
   expect([200, 400, 404, 422]).toContain(res.status());
 });
 
-// ── Anonymise on a real backup ───────────────────────────────────────────────
-test('@deep ANO-002 — Anonymise on latest backup completes successfully', async ({ page, request }) => {
+// â”€â”€ Anonymise on a real backup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ANO-002 â€” Anonymise on latest backup completes successfully', async ({ page, request }) => {
   test.setTimeout(5 * 60_000);
   const nonce = await getNonce(page);
 
   const { runFullBackup } = await import('./_helpers');
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
-  const res = await apiPost(request, nonce, '/backup/anonymise', {
+  const res = await apiPost(page, nonce, '/backup/anonymise', {
     backup_id: backup.id,
   });
   expect([200, 202]).toContain(res.status());
 });
 
-// ── Clone start ──────────────────────────────────────────────────────────────
-test('@deep CLN-100 — POST /backup/clone returns clone job id', async ({ page, request }) => {
+// â”€â”€ Clone start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep CLN-100 â€” POST /backup/clone returns clone job id', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await apiPost(request, nonce, '/backup/clone', {
+  const res   = await apiPost(page, nonce, '/backup/clone', {
     target_subdir: 'staging-test',
   });
   // May 200 with job, or 400 if subdir already exists
@@ -50,10 +50,10 @@ test('@deep CLN-100 — POST /backup/clone returns clone job id', async ({ page,
   }
 });
 
-// ── Clone status polling ─────────────────────────────────────────────────────
-test('@deep CLN-101 — GET /backup/clone/{id} polls status of running clone', async ({ page, request }) => {
+// â”€â”€ Clone status polling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep CLN-101 â€” GET /backup/clone/{id} polls status of running clone', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const startRes = await apiPost(request, nonce, '/backup/clone', {
+  const startRes = await apiPost(page, nonce, '/backup/clone', {
     target_subdir: 'staging-test-' + Date.now(),
   });
 
@@ -65,7 +65,7 @@ test('@deep CLN-101 — GET /backup/clone/{id} polls status of running clone', a
   const cloneId = (await startRes.json()).data?.id as string;
   const polls   = 5;
   for (let i = 0; i < polls; i++) {
-    const res = await apiGet(request, nonce, `/backup/clone/${cloneId}`);
+    const res = await apiGet(page, nonce, `/backup/clone/${cloneId}`);
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data?.status).toBeTruthy();
@@ -74,19 +74,19 @@ test('@deep CLN-101 — GET /backup/clone/{id} polls status of running clone', a
   }
 });
 
-// ── Clone with bogus target subdir rejected ──────────────────────────────────
-test('@deep CLN-102 — Clone with target_subdir containing path traversal rejected', async ({ page, request }) => {
+// â”€â”€ Clone with bogus target subdir rejected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep CLN-102 â€” Clone with target_subdir containing path traversal rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await apiPost(request, nonce, '/backup/clone', {
+  const res   = await apiPost(page, nonce, '/backup/clone', {
     target_subdir: '../../etc',
   });
   expect([400, 422]).toContain(res.status());
 });
 
-// ── Search-replace standalone ────────────────────────────────────────────────
-test('@deep SR-001 — POST /backup/search-replace dry-run returns affected count', async ({ page, request }) => {
+// â”€â”€ Search-replace standalone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SR-001 â€” POST /backup/search-replace dry-run returns affected count', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await apiPost(request, nonce, '/backup/search-replace', {
+  const res   = await apiPost(page, nonce, '/backup/search-replace', {
     pairs:   [{ from: 'this-string-doesnt-exist-anywhere-xyz789', to: 'replaced' }],
     dry_run: true,
   });

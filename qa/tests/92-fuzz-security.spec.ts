@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 92-fuzz-security.spec.ts
  * Deep QA: security-flavoured fuzz.
  *
@@ -26,10 +26,10 @@ const POLYGLOTS = [
   'data:text/html,<script>alert(1)</script>',
   '${7*7}',
   '{{7*7}}',
-  'http://evil.example.com‮.com', // RTL spoof
+  'http://evil.example.comâ€®.com', // RTL spoof
 ];
 
-// ── SSRF: paired url across schemes ──────────────────────────────────────────
+// â”€â”€ SSRF: paired url across schemes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SSRF_URLS = [
   'http://169.254.169.254/latest/meta-data/',
   'http://localhost',
@@ -49,20 +49,20 @@ const SSRF_URLS = [
 ];
 
 for (const url of SSRF_URLS) {
-  test(`@deep SECF-001 — SSRF probe ${JSON.stringify(url.slice(0, 40))} rejected`, async ({ page, request }) => {
+  test(`@deep SECF-001 â€” SSRF probe ${JSON.stringify(url.slice(0, 40))} rejected`, async ({ page, request }) => {
     const nonce = await getNonce(page);
-    const res   = await apiPut(request, nonce, '/backup/paired', {
+    const res   = await apiPut(page, nonce, '/backup/paired', {
       url, code: 'fake', label: 'ssrf-probe',
     });
     expect([400, 403, 422]).toContain(res.status());
   });
 }
 
-// ── Polyglot input ───────────────────────────────────────────────────────────
+// â”€â”€ Polyglot input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 for (const p of POLYGLOTS) {
-  test(`@deep SECF-002 — Polyglot label ${JSON.stringify(p.slice(0, 30))} stored safely`, async ({ page, request }) => {
+  test(`@deep SECF-002 â€” Polyglot label ${JSON.stringify(p.slice(0, 30))} stored safely`, async ({ page, request }) => {
     const nonce = await getNonce(page);
-    const res   = await apiPut(request, nonce, '/backup/destinations', {
+    const res   = await apiPut(page, nonce, '/backup/destinations', {
       type: 'local', label: p, enabled: false, config: {},
     });
     expect([200, 400, 422]).toContain(res.status());
@@ -70,57 +70,57 @@ for (const p of POLYGLOTS) {
     if (res.status() === 200) {
       const id = (await res.json()).data?.id as string;
       const { apiDelete } = await import('./_helpers');
-      await apiDelete(request, nonce, `/backup/destinations/${id}`, {
+      await apiDelete(page, nonce, `/backup/destinations/${id}`, {
         confirm_password: process.env.WP_ADMIN_PASS ?? 'password',
       });
     }
   });
 }
 
-// ── Header injection in OAuth state ──────────────────────────────────────────
-test('@deep SECF-003 — \\r\\n in OAuth state param does not injected into response headers', async ({ page, request }) => {
+// â”€â”€ Header injection in OAuth state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SECF-003 â€” \\r\\n in OAuth state param does not injected into response headers', async ({ page, request }) => {
   const nonce = await getNonce(page);
   const malicious = encodeURIComponent('safe\r\nX-Injected: pwned\r\n');
-  const res = await request.get(
+  const res = await page.request.get(
     `${NS}/backup/destinations/google-drive/oauth/callback?code=x&state=${malicious}`,
     { headers: { 'X-WP-Nonce': nonce } },
   );
   expect(res.headers()['x-injected']).toBeUndefined();
 });
 
-// ── Path traversal in importer file_id ───────────────────────────────────────
-test('@deep SECF-004 — POST /backup/importer with traversed file_id rejected', async ({ page, request }) => {
+// â”€â”€ Path traversal in importer file_id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SECF-004 â€” POST /backup/importer with traversed file_id rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
   for (const p of ['../../wp-config.php', '..%2F..%2Fwp-config', '/etc/hosts']) {
-    const res = await apiPost(request, nonce, '/backup/importer', { file_id: p });
+    const res = await apiPost(page, nonce, '/backup/importer', { file_id: p });
     expect([400, 403, 404, 422]).toContain(res.status());
   }
 });
 
-// ── Path traversal in storage_dir ────────────────────────────────────────────
-test('@deep SECF-005 — Storage dir = file:///etc/passwd rejected', async ({ page, request }) => {
+// â”€â”€ Path traversal in storage_dir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SECF-005 â€” Storage dir = file:///etc/passwd rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
   for (const p of ['file:///etc/passwd', '\\\\hostname\\share', 'phar://attack.phar']) {
-    const res = await apiPut(request, nonce, '/backup/settings', { storage_dir: p });
+    const res = await apiPut(page, nonce, '/backup/settings', { storage_dir: p });
     expect([200, 400, 422]).toContain(res.status());
-    // If accepted we must verify it didn't actually use it — ideally rejected
+    // If accepted we must verify it didn't actually use it â€” ideally rejected
   }
 });
 
-// ── XML/JSON polyglot in JSON body ───────────────────────────────────────────
-test('@deep SECF-006 — XML in JSON-only POST body rejected', async ({ page, request }) => {
+// â”€â”€ XML/JSON polyglot in JSON body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SECF-006 â€” XML in JSON-only POST body rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.post(`${NS}/backup/run`, {
+  const res   = await page.request.post(`${NS}/backup/run`, {
     headers: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
     data:    '<?xml version="1.0"?><run><type>full</type></run>',
   });
   expect([400, 422]).toContain(res.status());
 });
 
-// ── Prototype pollution attempt in settings ──────────────────────────────────
-test('@deep SECF-007 — Settings PUT with __proto__ key does not poison globals', async ({ page, request }) => {
+// â”€â”€ Prototype pollution attempt in settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SECF-007 â€” Settings PUT with __proto__ key does not poison globals', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await apiPut(request, nonce, '/backup/settings', {
+  const res   = await apiPut(page, nonce, '/backup/settings', {
     __proto__: { isAdminEverywhere: true },
     constructor: { prototype: { x: 'pwn' } },
   });
@@ -128,14 +128,14 @@ test('@deep SECF-007 — Settings PUT with __proto__ key does not poison globals
 
   // Verify globals not poisoned by re-fetching site-info
   const { apiGet } = await import('./_helpers');
-  const after = await apiGet(request, nonce, '/backup/site-info');
+  const after = await apiGet(page, nonce, '/backup/site-info');
   expect(after.status()).toBe(200);
 });
 
-// ── Wrong HTTP method on public route ────────────────────────────────────────
-test('@deep SECF-008 — PATCH /backup/run not allowed', async ({ page, request }) => {
+// â”€â”€ Wrong HTTP method on public route â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SECF-008 â€” PATCH /backup/run not allowed', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.fetch(`${NS}/backup/run`, {
+  const res   = await page.request.fetch(`${NS}/backup/run`, {
     method:  'PATCH',
     headers: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
     data:    JSON.stringify({ type: 'full' }),

@@ -1,16 +1,19 @@
-/**
+﻿/**
  * 95-dashboard.spec.ts
- * TC009 — Site Health all green (7 NexterBackup tests)
- * TC010 — Delete a backup (list + disk)
+ * TC009 â€” Site Health all green (7 NexterBackup tests)
+ * TC010 â€” Delete a backup (list + disk)
  */
 import { test, expect } from '@playwright/test';
 import { getNonce, apiPost, apiGet, apiDelete, runFullBackup, BASE, NS, ADMIN_PASS } from './_helpers';
+
+// TC010 runs multiple full backup cycles back-to-back; allow up to 10 min
+test.setTimeout(600_000);
 
 test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── TC009 — Site Health ───────────────────────────────────────────────────────
+// â”€â”€ TC009 â€” Site Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SITE_HEALTH_TESTS = [
   'nxt_backup_destination',
   'nxt_backup_schedule',
@@ -21,9 +24,9 @@ const SITE_HEALTH_TESTS = [
   'nxt_backup_storage_probe',
 ] as const;
 
-test('@P0 TC009 — All 7 NexterBackup Site Health tests are registered', async ({ page }) => {
+test('@P0 TC009 â€” All 7 NexterBackup Site Health tests are registered', async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/site-health.php`);
-  // WP runs tests inline — wait for them to appear
+  // WP runs tests inline â€” wait for them to appear
   await page.waitForSelector('.health-check-accordion', { timeout: 30_000 }).catch(() => {});
   const pageText = await page.content();
   for (const testKey of SITE_HEALTH_TESTS) {
@@ -33,12 +36,12 @@ test('@P0 TC009 — All 7 NexterBackup Site Health tests are registered', async 
   }
 });
 
-test('@P0 TC009 — WP REST Site Health endpoints return results for each test', async ({ page, request }) => {
+test('@P0 TC009 â€” WP REST Site Health endpoints return results for each test', async ({ page, request }) => {
   const nonce = await getNonce(page);
 
   // WP exposes site-health tests via its own REST namespace
   for (const testId of SITE_HEALTH_TESTS) {
-    const res = await request.get(
+    const res = await page.request.get(
       `${BASE}/wp-json/wp-site-health/v1/tests/${testId}`,
       { headers: { 'X-WP-Nonce': nonce } },
     );
@@ -53,9 +56,9 @@ test('@P0 TC009 — WP REST Site Health endpoints return results for each test',
   }
 });
 
-test('@P0 TC009 — nxt_backup_storage_dir returns "good" on healthy install', async ({ page, request }) => {
+test('@P0 TC009 â€” nxt_backup_storage_dir returns "good" on healthy install', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.get(
+  const res   = await page.request.get(
     `${BASE}/wp-json/wp-site-health/v1/tests/nxt_backup_storage_dir`,
     { headers: { 'X-WP-Nonce': nonce } },
   );
@@ -67,9 +70,9 @@ test('@P0 TC009 — nxt_backup_storage_dir returns "good" on healthy install', a
   expect(body.status).toBe('good');
 });
 
-test('@P0 TC009 — nxt_backup_extensions test is present and good (zip + openssl available)', async ({ page, request }) => {
+test('@P0 TC009 â€” nxt_backup_extensions test is present and good (zip + openssl available)', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.get(
+  const res   = await page.request.get(
     `${BASE}/wp-json/wp-site-health/v1/tests/nxt_backup_extensions`,
     { headers: { 'X-WP-Nonce': nonce } },
   );
@@ -82,52 +85,52 @@ test('@P0 TC009 — nxt_backup_extensions test is present and good (zip + openss
   expect(body.status).toBe('good');
 });
 
-// ── TC010 — Delete a backup ───────────────────────────────────────────────────
-test('@P0 TC010 — DELETE /backup/{id} removes entry from list', async ({ page, request }) => {
+// â”€â”€ TC010 â€” Delete a backup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@P0 TC010 â€” DELETE /backup/{id} removes entry from list', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
   const id     = backup.id as string;
 
   // Confirm it exists
-  const beforeList = await (await apiGet(request, nonce, '/backup/list')).json();
+  const beforeList = await (await apiGet(page, nonce, '/backup/list')).json();
   const beforeIds  = (beforeList.data as { id: string }[]).map(e => e.id);
   expect(beforeIds).toContain(id);
 
   // Delete with re-auth
-  const delRes = await apiDelete(request, nonce, `/backup/${id}`, {
+  const delRes = await apiDelete(page, nonce, `/backup/${id}`, {
     confirm_password: ADMIN_PASS,
   });
   expect(delRes.status()).toBe(200);
 
   // Should be gone from list
-  const afterList = await (await apiGet(request, nonce, '/backup/list')).json();
+  const afterList = await (await apiGet(page, nonce, '/backup/list')).json();
   const afterIds  = (afterList.data as { id: string }[]).map(e => e.id);
   expect(afterIds).not.toContain(id);
 });
 
-test('@P0 TC010 — DELETE /backup/{id} without password returns 401', async ({ page, request }) => {
+test('@P0 TC010 â€” DELETE /backup/{id} without password returns 401', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
-  const res = await apiDelete(request, nonce, `/backup/${backup.id}`, {
+  const res = await apiDelete(page, nonce, `/backup/${backup.id}`, {
     // No confirm_password
   });
   expect(res.status()).toBe(401);
 });
 
-test('@P0 TC010 — Deleted backup zip file is removed from disk', async ({ page, request }) => {
+test('@P0 TC010 â€” Deleted backup zip file is removed from disk', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
   const parts  = backup.parts as string[];
   const id     = backup.id as string;
 
-  await apiDelete(request, nonce, `/backup/${id}`, {
+  await apiDelete(page, nonce, `/backup/${id}`, {
     confirm_password: ADMIN_PASS,
   });
 
-  // Verify: call /backup/rescan — if files existed they'd reappear
-  await apiPost(request, nonce, '/backup/rescan');
-  const listRes  = await apiGet(request, nonce, '/backup/list');
+  // Verify: call /backup/rescan â€” if files existed they'd reappear
+  await apiPost(page, nonce, '/backup/rescan');
+  const listRes  = await apiGet(page, nonce, '/backup/list');
   const listBody = await listRes.json();
   const afterIds = (listBody.data as { id: string }[]).map(e => e.id);
   // The deleted backup should not resurface after rescan

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 38-archive-integrity.spec.ts
  * Deep QA: archive format integrity.
  *
@@ -17,10 +17,10 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── Manifest exists ──────────────────────────────────────────────────────────
-test('@deep ARCH-001 — Backup record includes a manifest with parts metadata', async ({ page, request }) => {
+// â”€â”€ Manifest exists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-001 â€” Backup record includes a manifest with parts metadata', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
   // Manifest may be embedded in the backup record OR fetchable
   // Inspect backup object for sha/sizes
@@ -35,26 +35,26 @@ test('@deep ARCH-001 — Backup record includes a manifest with parts metadata',
   expect(hasManifest).toBeTruthy();
 });
 
-// ── Each part downloadable ───────────────────────────────────────────────────
-test('@deep ARCH-002 — Each archive part downloadable via GET /backup/download/{id}/{idx}', async ({ page, request }) => {
+// â”€â”€ Each part downloadable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-002 â€” Each archive part downloadable via GET /backup/download/{id}/{idx}', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
   const parts  = backup.parts as string[];
 
   for (let i = 0; i < parts.length; i++) {
-    const res = await request.get(`${NS}/backup/download/${backup.id}/${i}`, {
+    const res = await page.request.get(`${NS}/backup/download/${backup.id}/${i}`, {
       headers: { 'X-WP-Nonce': nonce },
     });
     expect([200, 302]).toContain(res.status());
   }
 });
 
-// ── Downloaded part has expected zip magic bytes ─────────────────────────────
-test('@deep ARCH-003 — Downloaded part 0 starts with PK\\x03\\x04 (ZIP magic) or NXTBKP (encrypted)', async ({ page, request }) => {
+// â”€â”€ Downloaded part has expected zip magic bytes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-003 â€” Downloaded part 0 starts with PK\\x03\\x04 (ZIP magic) or NXTBKP (encrypted)', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
-  const res = await request.get(`${NS}/backup/download/${backup.id}/0`, {
+  const res = await page.request.get(`${NS}/backup/download/${backup.id}/0`, {
     headers: { 'X-WP-Nonce': nonce },
   });
   if (res.status() !== 200) {
@@ -66,10 +66,10 @@ test('@deep ARCH-003 — Downloaded part 0 starts with PK\\x03\\x04 (ZIP magic) 
   expect(magic).toMatch(/^PK\x03\x04|^NXTBKP/);
 });
 
-// ── SHA-256 verification ─────────────────────────────────────────────────────
-test('@deep ARCH-004 — Downloaded part SHA-256 matches manifest sha256 (if exposed)', async ({ page, request }) => {
+// â”€â”€ SHA-256 verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-004 â€” Downloaded part SHA-256 matches manifest sha256 (if exposed)', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
   const meta   = (backup as Record<string, unknown>).part_meta
               ?? (backup as Record<string, unknown>).manifest
               ?? null;
@@ -89,7 +89,7 @@ test('@deep ARCH-004 — Downloaded part SHA-256 matches manifest sha256 (if exp
     const expectedSha = partsMeta[i].sha256;
     if (!expectedSha) continue;
 
-    const res  = await request.get(`${NS}/backup/download/${backup.id}/${i}`, {
+    const res  = await page.request.get(`${NS}/backup/download/${backup.id}/${i}`, {
       headers: { 'X-WP-Nonce': nonce },
     });
     if (res.status() !== 200) continue;
@@ -99,20 +99,20 @@ test('@deep ARCH-004 — Downloaded part SHA-256 matches manifest sha256 (if exp
   }
 });
 
-// ── Manifest declares components ─────────────────────────────────────────────
-test('@deep ARCH-005 — Backup record lists components included', async ({ page, request }) => {
+// â”€â”€ Manifest declares components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-005 â€” Backup record lists components included', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
   const components = (backup as Record<string, unknown>).components
                   ?? (backup as Record<string, unknown>).included_components;
   expect(components).toBeTruthy();
 });
 
-// ── Manifest schema_version ──────────────────────────────────────────────────
-test('@deep ARCH-006 — Manifest declares schema_version (forward-compat tracking)', async ({ page, request }) => {
+// â”€â”€ Manifest schema_version â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-006 â€” Manifest declares schema_version (forward-compat tracking)', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
   // Look for any version field
   const possible = ['schema_version', 'manifest_version', 'plugin_version', 'version'];
@@ -126,10 +126,10 @@ test('@deep ARCH-006 — Manifest declares schema_version (forward-compat tracki
   expect(found).toBe(true);
 });
 
-// ── Backup record bytes total matches sum of parts ───────────────────────────
-test('@deep ARCH-007 — Backup record total_size matches sum of part sizes', async ({ page, request }) => {
+// â”€â”€ Backup record bytes total matches sum of parts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-007 â€” Backup record total_size matches sum of part sizes', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
   const totalSize = (backup as Record<string, unknown>).total_size
                  ?? (backup as Record<string, unknown>).size;
@@ -138,8 +138,8 @@ test('@deep ARCH-007 — Backup record total_size matches sum of part sizes', as
   }
 });
 
-// ── Restore detects corruption (mark — depends on fixture infra) ─────────────
-test('@deep ARCH-008 — Restore from corrupted archive part reports failure', async ({ page, request }) => {
+// â”€â”€ Restore detects corruption (mark â€” depends on fixture infra) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep ARCH-008 â€” Restore from corrupted archive part reports failure', async ({ page, request }) => {
   test.skip(
     !process.env.CORRUPTION_TEST_MODE,
     'Set CORRUPTION_TEST_MODE=1 with a script that flips bytes in archive after backup',

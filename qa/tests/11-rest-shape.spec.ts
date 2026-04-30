@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 11-rest-shape.spec.ts
  * Deep QA: response shape contracts.
  *
@@ -13,28 +13,28 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── /backup/stats ────────────────────────────────────────────────────────────
-test('@deep SHAPE-001 — /backup/stats has total + total_size + success + runtime fields', async ({ page, request }) => {
+// â”€â”€ /backup/stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-001 â€” /backup/stats has total + total_size + success + runtime fields', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/stats')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/stats')).json();
   expect(body.data).toHaveProperty('total');
   expect(body.data).toHaveProperty('total_size');
   expect(typeof body.data.total).toBe('number');
 });
 
-// ── /backup/site-info ────────────────────────────────────────────────────────
-test('@deep SHAPE-002 — /backup/site-info has php_version + wp_version + is_multisite', async ({ page, request }) => {
+// â”€â”€ /backup/site-info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-002 â€” /backup/site-info has php_version + wp_version + is_multisite', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/site-info')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/site-info')).json();
   expect(body.data?.php_version).toMatch(/^\d+\.\d+/);
   expect(body.data?.wp_version).toMatch(/^\d+\.\d+/);
   expect(typeof body.data?.is_multisite).toBe('boolean');
 });
 
-// ── /backup/site-size ────────────────────────────────────────────────────────
-test('@deep SHAPE-003 — /backup/site-size has uploads_size + plugins_size + themes_size', async ({ page, request }) => {
+// â”€â”€ /backup/site-size â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-003 â€” /backup/site-size has uploads_size + plugins_size + themes_size', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/site-size')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/site-size')).json();
   expect(body.data).toBeDefined();
   // Each size field is a non-negative number
   for (const key of ['uploads_size', 'plugins_size', 'themes_size', 'mu_plugins_size', 'wpcore_size']) {
@@ -44,12 +44,12 @@ test('@deep SHAPE-003 — /backup/site-size has uploads_size + plugins_size + th
   }
 });
 
-// ── /backup/list ──────────────────────────────────────────────────────────────
-test('@deep SHAPE-004 — /backup/list returns array; each entry has id+status+ts+parts', async ({ page, request }) => {
+// â”€â”€ /backup/list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-004 â€” /backup/list returns array; each entry has id+status+ts+parts', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  await runFullBackup(request, nonce);
+  await runFullBackup(page, nonce);
 
-  const body = await (await apiGet(request, nonce, '/backup/list')).json();
+  const body = await (await apiGet(page, nonce, '/backup/list')).json();
   const list = body.data as { id: string; status: string; ts?: number; parts: string[] }[];
   expect(Array.isArray(list)).toBe(true);
   expect(list.length).toBeGreaterThan(0);
@@ -60,10 +60,10 @@ test('@deep SHAPE-004 — /backup/list returns array; each entry has id+status+t
   }
 });
 
-// ── /backup/destinations ─────────────────────────────────────────────────────
-test('@deep SHAPE-005 — /backup/destinations entries have id+type+label+enabled', async ({ page, request }) => {
+// â”€â”€ /backup/destinations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-005 â€” /backup/destinations entries have id+type+label+enabled', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/destinations')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/destinations')).json();
   const dests = body.data as { id: string; type: string; label: string; enabled: boolean }[];
   for (const d of dests.slice(0, 3)) {
     expect(typeof d.id).toBe('string');
@@ -73,10 +73,10 @@ test('@deep SHAPE-005 — /backup/destinations entries have id+type+label+enable
   }
 });
 
-// ── /backup/db-tables ────────────────────────────────────────────────────────
-test('@deep SHAPE-006 — /backup/db-tables entries have name + rows + size', async ({ page, request }) => {
+// â”€â”€ /backup/db-tables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-006 â€” /backup/db-tables entries have name + rows + size', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/db-tables')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/db-tables')).json();
   const tables = body.data as { name: string; rows?: number; size?: number }[];
   expect(Array.isArray(tables)).toBe(true);
   expect(tables.length).toBeGreaterThan(0);
@@ -85,10 +85,10 @@ test('@deep SHAPE-006 — /backup/db-tables entries have name + rows + size', as
   }
 });
 
-// ── /backup/cron ─────────────────────────────────────────────────────────────
-test('@deep SHAPE-007 — /backup/cron entries have hook + next + (optional) args', async ({ page, request }) => {
+// â”€â”€ /backup/cron â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-007 â€” /backup/cron entries have hook + next + (optional) args', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const body   = await (await apiGet(request, nonce, '/backup/cron')).json();
+  const body   = await (await apiGet(page, nonce, '/backup/cron')).json();
   const events = body.data as { hook: string; next: number }[];
   expect(Array.isArray(events)).toBe(true);
   for (const e of events.slice(0, 3)) {
@@ -97,12 +97,12 @@ test('@deep SHAPE-007 — /backup/cron entries have hook + next + (optional) arg
   }
 });
 
-// ── /backup/audit ─────────────────────────────────────────────────────────────
-test('@deep SHAPE-008 — /backup/audit entries have action + user + ts + ip + ua', async ({ page, request }) => {
+// â”€â”€ /backup/audit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-008 â€” /backup/audit entries have action + user + ts + ip + ua', async ({ page, request }) => {
   const nonce   = await getNonce(page);
-  await runFullBackup(request, nonce);
+  await runFullBackup(page, nonce);
 
-  const body    = await (await apiGet(request, nonce, '/backup/audit', { limit: '5' })).json();
+  const body    = await (await apiGet(page, nonce, '/backup/audit', { limit: '5' })).json();
   const entries = body.data as { action: string; user: number; ts: number; ip?: string; ua?: string }[];
   for (const e of entries.slice(0, 3)) {
     expect(typeof e.action).toBe('string');
@@ -111,27 +111,27 @@ test('@deep SHAPE-008 — /backup/audit entries have action + user + ts + ip + u
   }
 });
 
-// ── /backup/cleanup/summary ──────────────────────────────────────────────────
-test('@deep SHAPE-009 — /backup/cleanup/summary returns object with numeric stats', async ({ page, request }) => {
+// â”€â”€ /backup/cleanup/summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-009 â€” /backup/cleanup/summary returns object with numeric stats', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/cleanup/summary')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/cleanup/summary')).json();
   expect(typeof body.data).toBe('object');
 });
 
-// ── /backup/run/current (idle) ───────────────────────────────────────────────
-test('@deep SHAPE-010 — /backup/run/current when idle returns status="idle" or empty', async ({ page, request }) => {
+// â”€â”€ /backup/run/current (idle) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-010 â€” /backup/run/current when idle returns status="idle" or empty', async ({ page, request }) => {
   const nonce = await getNonce(page);
   // Wait for any prior runs to drain
-  const body = await (await apiGet(request, nonce, '/backup/run/current')).json();
+  const body = await (await apiGet(page, nonce, '/backup/run/current')).json();
   // Either idle, an empty object, or a terminal state
   expect(['idle', 'success', 'failed', 'cancelled', undefined])
     .toContain(body.data?.status);
 });
 
-// ── /backup/settings ──────────────────────────────────────────────────────────
-test('@deep SHAPE-011 — /backup/settings returns the documented setting keys', async ({ page, request }) => {
+// â”€â”€ /backup/settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-011 â€” /backup/settings returns the documented setting keys', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/settings')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/settings')).json();
   // Sample keys we know exist
   const keys = ['schedule_files_interval', 'split_archives_by_component', 'split_archive_mb'];
   for (const k of keys) {
@@ -139,25 +139,25 @@ test('@deep SHAPE-011 — /backup/settings returns the documented setting keys',
   }
 });
 
-// ── /backup/paired ────────────────────────────────────────────────────────────
-test('@deep SHAPE-012 — /backup/paired returns array (possibly empty)', async ({ page, request }) => {
+// â”€â”€ /backup/paired â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-012 â€” /backup/paired returns array (possibly empty)', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/paired')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/paired')).json();
   expect(Array.isArray(body.data)).toBe(true);
 });
 
-// ── /backup/sync/jobs ─────────────────────────────────────────────────────────
-test('@deep SHAPE-013 — /backup/sync/jobs returns array (possibly empty)', async ({ page, request }) => {
+// â”€â”€ /backup/sync/jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-013 â€” /backup/sync/jobs returns array (possibly empty)', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/sync/jobs')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/sync/jobs')).json();
   expect(Array.isArray(body.data)).toBe(true);
 });
 
-// ── Error response shape ─────────────────────────────────────────────────────
-test('@deep SHAPE-014 — Error responses follow {code, message, data: {status}} contract', async ({ page, request }) => {
+// â”€â”€ Error response shape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep SHAPE-014 â€” Error responses follow {code, message, data: {status}} contract', async ({ page, request }) => {
   const nonce = await getNonce(page);
   // Force a 404
-  const res  = await apiGet(request, nonce, '/backup/log/totally-fake-id-here');
+  const res  = await apiGet(page, nonce, '/backup/log/totally-fake-id-here');
   if (res.status() >= 400) {
     const body = await res.json();
     expect(body).toHaveProperty('code');

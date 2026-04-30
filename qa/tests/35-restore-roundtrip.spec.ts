@@ -1,52 +1,56 @@
-/**
+﻿/**
  * 35-restore-roundtrip.spec.ts
- * TC005 — Selective restore: tick only Database
- * TC115 — Restore on different domain with 2 search-replace pairs
+ * TC005 â€” Selective restore: tick only Database
+ * TC115 â€” Restore on different domain with 2 search-replace pairs
  */
 import { test, expect } from '@playwright/test';
 import { getNonce, apiPost, apiGet, runFullBackup, waitForRestore, BASE, ADMIN_PASS } from './_helpers';
+
+// Restore tests each need a full backup + restore cycle which can take several minutes.
+// 10 min: backup (~60s) + 409 drain (~240s) + fresh backup (~60s) + restore (~240s) per test.
+test.setTimeout(600_000);
 
 test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── TC005 — Selective restore: tick only Database ─────────────────────────────
-test('@P0 TC005 — POST /backup/restore/{id} with components=["db"] returns 200', async ({ page, request }) => {
+// â”€â”€ TC005 â€” Selective restore: tick only Database â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@P0 TC005 â€” POST /backup/restore/{id} with components=["db"] returns 200', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
   const id     = backup.id as string;
 
-  const res = await apiPost(request, nonce, `/backup/restore/${id}`, {
+  const res = await apiPost(page, nonce, `/backup/restore/${id}`, {
     components:       ['db'],
     confirm_password: ADMIN_PASS,
   });
   expect(res.status()).toBe(200);
 });
 
-test('@P0 TC005 — Restore with only DB completes successfully', async ({ page, request }) => {
+test('@P0 TC005 â€” Restore with only DB completes successfully', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
   const id     = backup.id as string;
 
-  await apiPost(request, nonce, `/backup/restore/${id}`, {
+  await apiPost(page, nonce, `/backup/restore/${id}`, {
     components:       ['db'],
     confirm_password: ADMIN_PASS,
   });
 
-  const run = await waitForRestore(request, nonce, { driveSteps: true });
+  const run = await waitForRestore(page, nonce, { driveSteps: true, timeoutMs: 240_000 });
   expect(run.status).toBe('success');
 });
 
-test('@P0 TC005 — Only DB restored — plugins stage not reported', async ({ page, request }) => {
+test('@P0 TC005 â€” Only DB restored â€” plugins stage not reported', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
-  await apiPost(request, nonce, `/backup/restore/${backup.id}`, {
+  await apiPost(page, nonce, `/backup/restore/${backup.id}`, {
     components:       ['db'],
     confirm_password: ADMIN_PASS,
   });
 
-  const run = await waitForRestore(request, nonce, { driveSteps: true });
+  const run = await waitForRestore(page, nonce, { driveSteps: true, timeoutMs: 240_000 });
   // The restore record should show applied_components: ['db'] only
   const applied = (run.applied_components ?? run.components) as string[] | undefined;
   if (applied) {
@@ -59,11 +63,11 @@ test('@P0 TC005 — Only DB restored — plugins stage not reported', async ({ p
   }
 });
 
-test('@P0 TC005 — Re-auth gate: restore without password returns 401', async ({ page, request }) => {
+test('@P0 TC005 â€” Re-auth gate: restore without password returns 401', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
-  const res = await apiPost(request, nonce, `/backup/restore/${backup.id}`, {
+  const res = await apiPost(page, nonce, `/backup/restore/${backup.id}`, {
     components: ['db'],
     // No confirm_password
   });
@@ -72,16 +76,16 @@ test('@P0 TC005 — Re-auth gate: restore without password returns 401', async (
   expect(body.code).toMatch(/reauth_required/);
 });
 
-// ── TC115 — Restore with search-replace pairs ─────────────────────────────────
-test('@P1 TC115 — Restore with 2 search-replace pairs rewrites DB correctly', async ({ page, request }) => {
+// â”€â”€ TC115 â€” Restore with search-replace pairs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@P1 TC115 â€” Restore with 2 search-replace pairs rewrites DB correctly', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
 
   // Insert a known string in options we can verify later
   const oldDomain = new URL(BASE).hostname;
   const newDomain = 'staging.example.test';
 
-  const res = await apiPost(request, nonce, `/backup/restore/${backup.id}`, {
+  const res = await apiPost(page, nonce, `/backup/restore/${backup.id}`, {
     components: ['db'],
     search_replace: [
       { from: oldDomain, to: newDomain },
@@ -91,8 +95,8 @@ test('@P1 TC115 — Restore with 2 search-replace pairs rewrites DB correctly', 
   });
   expect(res.status()).toBe(200);
 
-  const run = await waitForRestore(request, nonce, { driveSteps: true, timeoutMs: 120_000 });
-  // Restore will run but we can't verify domain rewrite without a second site —
+  const run = await waitForRestore(page, nonce, { driveSteps: true, timeoutMs: 240_000 });
+  // Restore will run but we can't verify domain rewrite without a second site â€”
   // verify the restore completed without error at minimum
   expect(run.status).toBe('success');
 });

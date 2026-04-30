@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 56-s3-deep.spec.ts
  * Deep QA: Amazon S3 / S3-compatible (MinIO) destination behaviour.
  *
@@ -28,8 +28,8 @@ const cfg = () => ({
   region:     'us-east-1',
 });
 
-async function saveS3(request: import('@playwright/test').APIRequestContext, nonce: string, label: string, override = {}) {
-  const res = await apiPut(request, nonce, '/backup/destinations', {
+async function saveS3(page: import('@playwright/test').Page, nonce: string, label: string, override = {}) {
+  const res = await apiPut(page, nonce, '/backup/destinations', {
     type:    's3-compatible',
     label,
     enabled: true,
@@ -38,76 +38,76 @@ async function saveS3(request: import('@playwright/test').APIRequestContext, non
   return (await res.json()).data?.id as string;
 }
 
-async function teardownDest(request: import('@playwright/test').APIRequestContext, nonce: string, id: string | undefined) {
+async function teardownDest(page: import('@playwright/test').Page, nonce: string, id: string | undefined) {
   if (!id) return;
-  await apiDelete(request, nonce, `/backup/destinations/${id}`, { confirm_password: ADMIN_PASS });
+  await apiDelete(page, nonce, `/backup/destinations/${id}`, { confirm_password: ADMIN_PASS });
 }
 
-// ── Custom region ────────────────────────────────────────────────────────────
-test('@deep S3-001 — Save destination with region=eu-west-1', async ({ page, request }) => {
+// â”€â”€ Custom region â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-001 â€” Save destination with region=eu-west-1', async ({ page }) => {
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-001', { region: 'eu-west-1' });
+  const id    = await saveS3(page, nonce, 'S3-001', { region: 'eu-west-1' });
   expect(id).toBeTruthy();
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });
 
-// ── Path prefix ──────────────────────────────────────────────────────────────
-test('@deep S3-002 — Save destination with custom path prefix', async ({ page, request }) => {
+// â”€â”€ Path prefix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-002 â€” Save destination with custom path prefix', async ({ page }) => {
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-002', { path_prefix: 'backups/site-a/' });
+  const id    = await saveS3(page, nonce, 'S3-002', { path_prefix: 'backups/site-a/' });
   expect(id).toBeTruthy();
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });
 
-// ── Bucket not found ─────────────────────────────────────────────────────────
-test('@deep S3-003 — Test connection with bucket that does not exist returns ok=false', async ({ page, request }) => {
+// â”€â”€ Bucket not found â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-003 â€” Test connection with bucket that does not exist returns ok=false', async ({ page }) => {
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-003', { bucket: 'no-such-bucket-' + Date.now() });
+  const id    = await saveS3(page, nonce, 'S3-003', { bucket: 'no-such-bucket-' + Date.now() });
 
-  const testRes = await apiPost(request, nonce, `/backup/destinations/test/${id}`);
+  const testRes = await apiPost(page, nonce, `/backup/destinations/test/${id}`);
   const body    = await testRes.json();
   expect(body.data?.ok ?? false).toBe(false);
 
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });
 
-// ── Wrong access key ─────────────────────────────────────────────────────────
-test('@deep S3-004 — Test with wrong access_key returns ok=false (no PHP fatal)', async ({ page, request }) => {
+// â”€â”€ Wrong access key â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-004 â€” Test with wrong access_key returns ok=false (no PHP fatal)', async ({ page }) => {
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-004', { access_key: 'WRONG' });
+  const id    = await saveS3(page, nonce, 'S3-004', { access_key: 'WRONG' });
 
-  const testRes = await apiPost(request, nonce, `/backup/destinations/test/${id}`);
+  const testRes = await apiPost(page, nonce, `/backup/destinations/test/${id}`);
   expect(testRes.status()).toBe(200);
   const body = await testRes.json();
   expect(body.data?.ok).toBe(false);
 
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });
 
-// ── Wrong region detection ───────────────────────────────────────────────────
-test('@deep S3-005 — Test with wrong region returns ok=false (no PHP fatal)', async ({ page, request }) => {
+// â”€â”€ Wrong region detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-005 â€” Test with wrong region returns ok=false (no PHP fatal)', async ({ page }) => {
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-005', { region: 'mars-east-7' });
+  const id    = await saveS3(page, nonce, 'S3-005', { region: 'mars-east-7' });
 
-  const testRes = await apiPost(request, nonce, `/backup/destinations/test/${id}`);
+  const testRes = await apiPost(page, nonce, `/backup/destinations/test/${id}`);
   // MinIO is region-tolerant; AWS S3 wouldn't be. Accept either result.
   expect(testRes.status()).toBe(200);
 
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });
 
-// ── Storage class config ─────────────────────────────────────────────────────
-test('@deep S3-006 — Save with storage_class=STANDARD_IA persists', async ({ page, request }) => {
+// â”€â”€ Storage class config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-006 â€” Save with storage_class=STANDARD_IA persists', async ({ page }) => {
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-006', { storage_class: 'STANDARD_IA' });
+  const id    = await saveS3(page, nonce, 'S3-006', { storage_class: 'STANDARD_IA' });
   expect(id).toBeTruthy();
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });
 
-// ── Empty bucket name rejected ───────────────────────────────────────────────
-test('@deep S3-007 — Save with empty bucket name rejected', async ({ page, request }) => {
+// â”€â”€ Empty bucket name rejected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-007 â€” Save with empty bucket name rejected', async ({ page }) => {
   const nonce = await getNonce(page);
-  const res   = await apiPut(request, nonce, '/backup/destinations', {
+  const res   = await apiPut(page, nonce, '/backup/destinations', {
     type:    's3-compatible',
     label:   'S3-007 empty bucket',
     enabled: true,
@@ -116,36 +116,36 @@ test('@deep S3-007 — Save with empty bucket name rejected', async ({ page, req
   expect([400, 422]).toContain(res.status());
 });
 
-// ── List endpoint redacts secret_key ─────────────────────────────────────────
-test('@deep S3-008 — secret_key is not echoed in /backup/destinations list', async ({ page, request }) => {
+// â”€â”€ List endpoint redacts secret_key â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-008 â€” secret_key is not echoed in /backup/destinations list', async ({ page }) => {
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-008', { secret_key: 'NEVER-LEAK-THIS-S3-456' });
+  const id    = await saveS3(page, nonce, 'S3-008', { secret_key: 'NEVER-LEAK-THIS-S3-456' });
 
-  const list = await (await import('./_helpers')).apiGet(request, nonce, '/backup/destinations');
+  const list = await (await import('./_helpers')).apiGet(page, nonce, '/backup/destinations');
   const text = JSON.stringify(await list.json());
   expect(text).not.toContain('NEVER-LEAK-THIS-S3-456');
 
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });
 
-// ── Upload integration sanity (small backup) ─────────────────────────────────
-test('@deep S3-009 — DB-only backup uploads to S3 and remote[] populated', async ({ page, request }) => {
+// â”€â”€ Upload integration sanity (small backup) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep S3-009 â€” DB-only backup uploads to S3 and remote[] populated', async ({ page }) => {
   test.setTimeout(2 * 60_000);
 
   const nonce = await getNonce(page);
-  const id    = await saveS3(request, nonce, 'S3-009');
+  const id    = await saveS3(page, nonce, 'S3-009');
 
-  await apiPost(request, nonce, '/backup/run', {
+  await apiPost(page, nonce, '/backup/run', {
     type:         'database',
     destinations: [id],
   });
   const { waitForBackup, latestBackup } = await import('./_helpers');
-  await waitForBackup(request, nonce, { driveSteps: true });
-  const backup = await latestBackup(request, nonce);
+  await waitForBackup(page, nonce, { driveSteps: true });
+  const backup = await latestBackup(page, nonce);
   expect(backup).toBeTruthy();
 
   const remote = (backup as Record<string, unknown>).remote as unknown[] | undefined;
   expect(Array.isArray(remote) && remote.length > 0).toBe(true);
 
-  await teardownDest(request, nonce, id);
+  await teardownDest(page, nonce, id);
 });

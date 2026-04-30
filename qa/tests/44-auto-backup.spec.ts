@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 44-auto-backup.spec.ts
  * Deep QA: auto-backup before plugin/theme/core update.
  *
@@ -14,65 +14,65 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── Settings persistence ─────────────────────────────────────────────────────
-test('@deep AB-001 — auto_backup_on_plugin_update setting persists', async ({ page, request }) => {
+// â”€â”€ Settings persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep AB-001 â€” auto_backup_on_plugin_update setting persists', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  await apiPut(request, nonce, '/backup/settings', {
+  await apiPut(page, nonce, '/backup/settings', {
     auto_backup_on_plugin_update: true,
     auto_backup_on_theme_update:  true,
     auto_backup_on_core_update:   true,
   });
-  const after = (await (await apiGet(request, nonce, '/backup/settings')).json()).data;
+  const after = (await (await apiGet(page, nonce, '/backup/settings')).json()).data;
   expect(after.auto_backup_on_plugin_update).toBe(true);
   expect(after.auto_backup_on_theme_update).toBe(true);
   expect(after.auto_backup_on_core_update).toBe(true);
 });
 
-// ── Trigger fires (mock via WP-CLI plugin update) ────────────────────────────
-test('@deep AB-002 — Auto-backup created before WP-CLI plugin update', async ({ page, request }) => {
+// â”€â”€ Trigger fires (mock via WP-CLI plugin update) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep AB-002 â€” Auto-backup created before WP-CLI plugin update', async ({ page, request }) => {
   test.skip(
     !process.env.WP_CLI_AVAILABLE,
-    'Set WP_CLI_AVAILABLE=1 — needs CLI access',
+    'Set WP_CLI_AVAILABLE=1 â€” needs CLI access',
   );
   test.skip(
     !process.env.AUTO_BACKUP_TEST_PLUGIN,
     'Set AUTO_BACKUP_TEST_PLUGIN=hello-dolly to enable trigger test',
   );
-  // Test stub — would shell out to wp plugin update <slug> and check list grew by 1
+  // Test stub â€” would shell out to wp plugin update <slug> and check list grew by 1
 });
 
-// ── Cooldown: don't snapshot if last auto-backup is fresh ────────────────────
-test('@deep AB-003 — auto_backup_cooldown setting persists', async ({ page, request }) => {
+// â”€â”€ Cooldown: don't snapshot if last auto-backup is fresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep AB-003 â€” auto_backup_cooldown setting persists', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  await apiPut(request, nonce, '/backup/settings', {
+  await apiPut(page, nonce, '/backup/settings', {
     auto_backup_cooldown_minutes: 10,
   });
-  const after = (await (await apiGet(request, nonce, '/backup/settings')).json()).data;
+  const after = (await (await apiGet(page, nonce, '/backup/settings')).json()).data;
   // Setting may be normalised
   expect(after.auto_backup_cooldown_minutes).toBeDefined();
 });
 
-// ── Disabling prevents trigger ───────────────────────────────────────────────
-test('@deep AB-004 — auto_backup_on_plugin_update=false prevents trigger', async ({ page, request }) => {
+// â”€â”€ Disabling prevents trigger â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep AB-004 â€” auto_backup_on_plugin_update=false prevents trigger', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  await apiPut(request, nonce, '/backup/settings', {
+  await apiPut(page, nonce, '/backup/settings', {
     auto_backup_on_plugin_update: false,
     auto_backup_on_theme_update:  false,
     auto_backup_on_core_update:   false,
   });
   // Behavioural: would need to trigger an upgrade and verify NO backup created
-  // — covered by AB-002 inverse
+  // â€” covered by AB-002 inverse
 });
 
-// ── Auto-backup label ────────────────────────────────────────────────────────
-test('@deep AB-005 — Auto-created backup is labelled and tagged', async ({ page, request }) => {
+// â”€â”€ Auto-backup label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep AB-005 â€” Auto-created backup is labelled and tagged', async ({ page, request }) => {
   test.skip(
     !process.env.AUTO_BACKUP_TEST_RUN,
     'Set AUTO_BACKUP_TEST_RUN=1 after triggering an auto-backup',
   );
 
   const nonce = await getNonce(page);
-  const list  = (await (await apiGet(request, nonce, '/backup/list')).json()).data as
+  const list  = (await (await apiGet(page, nonce, '/backup/list')).json()).data as
     { label?: string; tagged?: boolean; auto?: boolean }[];
 
   const auto = list.find(b => b.auto || /auto/i.test(b.label ?? ''));

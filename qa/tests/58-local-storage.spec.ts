@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 58-local-storage.spec.ts
  * Deep QA: local destination + storage_dir handling.
  *
@@ -16,18 +16,18 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── Default storage dir ──────────────────────────────────────────────────────
-test('@deep LS-001 — Default storage dir is under wp-content/uploads/nexter-backups/', async ({ page, request }) => {
+// â”€â”€ Default storage dir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep LS-001 â€” Default storage dir is under wp-content/uploads/nexter-backups/', async ({ page, request }) => {
   const nonce  = await getNonce(page);
-  const backup = await runFullBackup(request, nonce);
+  const backup = await runFullBackup(page, nonce);
   const parts  = backup.parts as string[];
   expect(parts[0]).toMatch(/wp-content[\\/]uploads[\\/]nexter-backups/);
 });
 
-// ── Storage probe ────────────────────────────────────────────────────────────
-test('@deep LS-002 — Site Health storage_probe returns "good" on a writable dir', async ({ page, request }) => {
+// â”€â”€ Storage probe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep LS-002 â€” Site Health storage_probe returns "good" on a writable dir', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await request.get(
+  const res   = await page.request.get(
     `${BASE}/wp-json/wp-site-health/v1/tests/nxt_backup_storage_probe`,
     { headers: { 'X-WP-Nonce': nonce } },
   );
@@ -39,76 +39,76 @@ test('@deep LS-002 — Site Health storage_probe returns "good" on a writable di
   expect(body.status).toBe('good');
 });
 
-// ── Custom storage dir ───────────────────────────────────────────────────────
-test('@deep LS-003 — Setting custom storage_dir persists in /backup/settings', async ({ page, request }) => {
+// â”€â”€ Custom storage dir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep LS-003 â€” Setting custom storage_dir persists in /backup/settings', async ({ page, request }) => {
   const nonce  = await getNonce(page);
   const custom = '/tmp/nxt-test-storage-' + Date.now();
 
-  const putRes = await apiPut(request, nonce, '/backup/settings', {
+  const putRes = await apiPut(page, nonce, '/backup/settings', {
     storage_dir: custom,
   });
   // Acceptable: 200 if path validation passes, 400 if rejected
   expect([200, 400, 422]).toContain(putRes.status());
 
   if (putRes.status() === 200) {
-    const after = (await (await apiGet(request, nonce, '/backup/settings')).json()).data;
+    const after = (await (await apiGet(page, nonce, '/backup/settings')).json()).data;
     expect(after.storage_dir).toBe(custom);
 
     // Reset to default
-    await apiPut(request, nonce, '/backup/settings', { storage_dir: '' });
+    await apiPut(page, nonce, '/backup/settings', { storage_dir: '' });
   }
 });
 
-// ── Storage dir path traversal ───────────────────────────────────────────────
-test('@deep LS-004 — Storage dir with .. traversal rejected', async ({ page, request }) => {
+// â”€â”€ Storage dir path traversal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep LS-004 â€” Storage dir with .. traversal rejected', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const res   = await apiPut(request, nonce, '/backup/settings', {
+  const res   = await apiPut(page, nonce, '/backup/settings', {
     storage_dir: '../../../etc',
   });
   expect([400, 422]).toContain(res.status());
 });
 
-// ── Local destination "test" returns ok ──────────────────────────────────────
-test('@deep LS-005 — Local destination test returns ok=true', async ({ page, request }) => {
+// â”€â”€ Local destination "test" returns ok â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep LS-005 â€” Local destination test returns ok=true', async ({ page, request }) => {
   const nonce = await getNonce(page);
 
-  const saveRes = await apiPut(request, nonce, '/backup/destinations', {
+  const saveRes = await apiPut(page, nonce, '/backup/destinations', {
     type: 'local', label: 'LS-005', enabled: true, config: {},
   });
   const id  = (await saveRes.json()).data?.id as string;
 
-  const testRes = await apiPost(request, nonce, `/backup/destinations/test/${id}`);
+  const testRes = await apiPost(page, nonce, `/backup/destinations/test/${id}`);
   expect(testRes.status()).toBe(200);
   const body = await testRes.json();
   expect(body.data?.ok).toBe(true);
 
   const { apiDelete } = await import('./_helpers');
-  await apiDelete(request, nonce, `/backup/destinations/${id}`, {
+  await apiDelete(page, nonce, `/backup/destinations/${id}`, {
     confirm_password: process.env.WP_ADMIN_PASS ?? 'password',
   });
 });
 
-// ── Disk space reported ──────────────────────────────────────────────────────
-test('@deep LS-006 — /backup/stats includes disk_free / disk_total', async ({ page, request }) => {
+// â”€â”€ Disk space reported â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep LS-006 â€” /backup/stats includes disk_free / disk_total', async ({ page, request }) => {
   const nonce = await getNonce(page);
-  const body  = await (await apiGet(request, nonce, '/backup/stats')).json();
+  const body  = await (await apiGet(page, nonce, '/backup/stats')).json();
   expect(body.data?.disk_free).toBeGreaterThanOrEqual(0);
   expect(body.data?.disk_total).toBeGreaterThan(0);
 });
 
-// ── Multiple local destinations with subdirs ─────────────────────────────────
-test('@deep LS-007 — Two local destinations with different subdir configs persist independently', async ({ page, request }) => {
+// â”€â”€ Multiple local destinations with subdirs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep LS-007 â€” Two local destinations with different subdir configs persist independently', async ({ page, request }) => {
   const nonce  = await getNonce(page);
 
-  const a = (await (await apiPut(request, nonce, '/backup/destinations', {
+  const a = (await (await apiPut(page, nonce, '/backup/destinations', {
     type: 'local', label: 'LS-007 A', enabled: true, config: { subdir: 'set-a' },
   })).json()).data?.id as string;
 
-  const b = (await (await apiPut(request, nonce, '/backup/destinations', {
+  const b = (await (await apiPut(page, nonce, '/backup/destinations', {
     type: 'local', label: 'LS-007 B', enabled: true, config: { subdir: 'set-b' },
   })).json()).data?.id as string;
 
-  const list = (await (await apiGet(request, nonce, '/backup/destinations')).json()).data as
+  const list = (await (await apiGet(page, nonce, '/backup/destinations')).json()).data as
     { id: string; config?: { subdir?: string } }[];
 
   const aRow = list.find(d => d.id === a);
@@ -118,7 +118,7 @@ test('@deep LS-007 — Two local destinations with different subdir configs pers
 
   const { apiDelete } = await import('./_helpers');
   for (const id of [a, b]) {
-    await apiDelete(request, nonce, `/backup/destinations/${id}`, {
+    await apiDelete(page, nonce, `/backup/destinations/${id}`, {
       confirm_password: process.env.WP_ADMIN_PASS ?? 'password',
     });
   }

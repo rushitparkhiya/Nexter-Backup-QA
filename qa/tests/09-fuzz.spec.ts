@@ -1,9 +1,9 @@
-/**
+﻿/**
  * 09-fuzz.spec.ts
  * Deep QA: fuzz testing.
  *
  * Random / weird inputs to settings, destination config, schedule, labels.
- * The aim is "no 500s, no PHP fatals, no data loss" — graceful rejection
+ * The aim is "no 500s, no PHP fatals, no data loss" â€” graceful rejection
  * is the only acceptable behaviour for invalid input.
  */
 import { test, expect } from '@playwright/test';
@@ -18,8 +18,8 @@ const RANDOM_STRINGS = [
   ' ',
   '\x00',
   '\n\r\t',
-  '🦀'.repeat(50),
-  '‮‮',                // RTL override sneak
+  'ðŸ¦€'.repeat(50),
+  'â€®â€®',                // RTL override sneak
   '../etc/passwd',
   'AAAAAAAAAA'.repeat(1000),
   '<script>alert(1)</script>',
@@ -33,22 +33,22 @@ const RANDOM_STRINGS = [
 
 const RANDOM_NUMBERS = [0, -1, 1.5, NaN, Infinity, -Infinity, 2 ** 53, -(2 ** 53)];
 
-// ── Fuzz settings: split_archive_mb ──────────────────────────────────────────
+// â”€â”€ Fuzz settings: split_archive_mb â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 for (const v of RANDOM_NUMBERS) {
-  test(`@deep FUZZ-001 — PUT settings split_archive_mb=${v} does not 500`, async ({ page, request }) => {
+  test(`@deep FUZZ-001 â€” PUT settings split_archive_mb=${v} does not 500`, async ({ page }) => {
     const nonce = await getNonce(page);
-    const res   = await apiPut(request, nonce, '/backup/settings', {
+    const res   = await apiPut(page, nonce, '/backup/settings', {
       split_archive_mb: v,
     });
     expect([200, 400, 422]).toContain(res.status());
   });
 }
 
-// ── Fuzz destination label ───────────────────────────────────────────────────
+// â”€â”€ Fuzz destination label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 for (const s of RANDOM_STRINGS) {
-  test(`@deep FUZZ-002 — PUT destinations with label=${JSON.stringify(s.slice(0, 20))} does not 500`, async ({ page, request }) => {
+  test(`@deep FUZZ-002 â€” PUT destinations with label=${JSON.stringify(s.slice(0, 20))} does not 500`, async ({ page }) => {
     const nonce = await getNonce(page);
-    const res   = await apiPut(request, nonce, '/backup/destinations', {
+    const res   = await apiPut(page, nonce, '/backup/destinations', {
       type:    'local',
       label:   s,
       enabled: false,
@@ -58,7 +58,7 @@ for (const s of RANDOM_STRINGS) {
     if (res.status() === 200) {
       // Cleanup
       const id = (await res.json()).data?.id as string;
-      await request.delete(`${NS}/backup/destinations/${id}`, {
+      await page.request.delete(`${NS}/backup/destinations/${id}`, {
         headers: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
         data:    { confirm_password: process.env.WP_ADMIN_PASS ?? 'password' },
       });
@@ -66,21 +66,21 @@ for (const s of RANDOM_STRINGS) {
   });
 }
 
-// ── Fuzz schedule fields ─────────────────────────────────────────────────────
-test('@deep FUZZ-003 — Schedule with weird interval string does not 500', async ({ page, request }) => {
+// â”€â”€ Fuzz schedule fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep FUZZ-003 â€” Schedule with weird interval string does not 500', async ({ page }) => {
   const nonce = await getNonce(page);
   for (const s of RANDOM_STRINGS.slice(0, 10)) {
-    const res = await apiPut(request, nonce, '/backup/settings', {
+    const res = await apiPut(page, nonce, '/backup/settings', {
       schedule_files_interval: s,
     });
     expect([200, 400, 422]).toContain(res.status());
   }
 });
 
-// ── Fuzz pair code ───────────────────────────────────────────────────────────
-test('@deep FUZZ-004 — POST /pair/accept with random codes does not 500', async ({ request }) => {
+// â”€â”€ Fuzz pair code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep FUZZ-004 â€” POST /pair/accept with random codes does not 500', async ({ request }) => {
   for (const s of RANDOM_STRINGS.slice(0, 10)) {
-    const res = await request.post(`${NS}/backup/pair/accept`, {
+    const res = await page.request.post(`${NS}/backup/pair/accept`, {
       headers: { 'Content-Type': 'application/json' },
       data:    { code: s },
     });
@@ -89,8 +89,8 @@ test('@deep FUZZ-004 — POST /pair/accept with random codes does not 500', asyn
   }
 });
 
-// ── Fuzz settings export → import malformed ──────────────────────────────────
-test('@deep FUZZ-005 — Settings import with garbage payload does not 500', async ({ page, request }) => {
+// â”€â”€ Fuzz settings export â†’ import malformed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep FUZZ-005 â€” Settings import with garbage payload does not 500', async ({ page }) => {
   const nonce = await getNonce(page);
 
   const garbage = [
@@ -102,21 +102,21 @@ test('@deep FUZZ-005 — Settings import with garbage payload does not 500', asy
   ];
 
   for (const g of garbage) {
-    const res = await apiPost(request, nonce, '/backup/settings/import', g);
+    const res = await apiPost(page, nonce, '/backup/settings/import', g);
     expect([200, 400, 422]).toContain(res.status());
   }
 });
 
-// ── Fuzz restore body ────────────────────────────────────────────────────────
-test('@deep FUZZ-006 — POST /backup/restore/{id} with random components array', async ({ page, request }) => {
+// â”€â”€ Fuzz restore body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep FUZZ-006 â€” POST /backup/restore/{id} with random components array', async ({ page }) => {
   const nonce = await getNonce(page);
-  // Use any backup id (will 404 if none exist — still tests the parser)
+  // Use any backup id (will 404 if none exist â€” still tests the parser)
   const id = 'fuzz-' + Date.now();
   for (const c of [
     null, [], 'string-not-array', [1, 2, 3], [{ obj: true }],
     Array(100).fill('db'),
   ]) {
-    const res = await apiPost(request, nonce, `/backup/restore/${id}`, {
+    const res = await apiPost(page, nonce, `/backup/restore/${id}`, {
       components:       c,
       confirm_password: process.env.WP_ADMIN_PASS ?? 'password',
     });
@@ -124,19 +124,19 @@ test('@deep FUZZ-006 — POST /backup/restore/{id} with random components array'
   }
 });
 
-// ── Fuzz destination config ───────────────────────────────────────────────────
-test('@deep FUZZ-007 — PUT destinations with random config blob does not 500', async ({ page, request }) => {
+// â”€â”€ Fuzz destination config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep FUZZ-007 â€” PUT destinations with random config blob does not 500', async ({ page }) => {
   const nonce  = await getNonce(page);
   const blobs: unknown[] = [
     { huge_array: Array(1000).fill('x') },
     { deeply: { nested: { object: { with: { many: { keys: true } } } } } },
     { number: NaN },
-    { unicode: '🚀'.repeat(100) },
+    { unicode: 'ðŸš€'.repeat(100) },
     { sql: "1' OR '1'='1" },
   ];
 
   for (const b of blobs) {
-    const res = await apiPut(request, nonce, '/backup/destinations', {
+    const res = await apiPut(page, nonce, '/backup/destinations', {
       type:    'local',
       label:   'fuzz',
       enabled: false,
@@ -145,7 +145,7 @@ test('@deep FUZZ-007 — PUT destinations with random config blob does not 500',
     expect([200, 400, 422]).toContain(res.status());
     if (res.status() === 200) {
       const id = (await res.json()).data?.id as string;
-      await request.delete(`${NS}/backup/destinations/${id}`, {
+      await page.request.delete(`${NS}/backup/destinations/${id}`, {
         headers: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
         data:    { confirm_password: process.env.WP_ADMIN_PASS ?? 'password' },
       });
@@ -153,10 +153,10 @@ test('@deep FUZZ-007 — PUT destinations with random config blob does not 500',
   }
 });
 
-// ── Verify no 5xx from any fuzz round ────────────────────────────────────────
-test('@deep FUZZ-008 — No previous fuzz call left the plugin in a 500-on-stats state', async ({ page, request }) => {
+// â”€â”€ Verify no 5xx from any fuzz round â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep FUZZ-008 â€” No previous fuzz call left the plugin in a 500-on-stats state', async ({ page }) => {
   const nonce = await getNonce(page);
-  const res   = await request.get(`${NS}/backup/stats`, {
+  const res   = await page.request.get(`${NS}/backup/stats`, {
     headers: { 'X-WP-Nonce': nonce },
   });
   expect(res.status()).toBe(200);

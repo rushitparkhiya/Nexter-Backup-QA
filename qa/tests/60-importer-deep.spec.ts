@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 60-importer-deep.spec.ts
  * Deep QA: importer edge cases beyond TC114.
  *
@@ -20,37 +20,37 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${BASE}/wp-admin/admin.php?page=nxt-backup`);
 });
 
-// ── Helper: post a buffer to importer ────────────────────────────────────────
+// â”€â”€ Helper: post a buffer to importer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function uploadBuffer(
-  request: import('@playwright/test').APIRequestContext,
+  page: import('@playwright/test').Page,
   nonce: string,
   buffer: Buffer,
   filename = 'test.zip',
 ) {
-  return request.post(`${NS}/backup/importer/upload`, {
+  return page.request.post(`${NS}/backup/importer/upload`, {
     headers:   { 'X-WP-Nonce': nonce },
     multipart: { file: { name: filename, mimeType: 'application/zip', buffer } },
   });
 }
 
-// ── Empty file ───────────────────────────────────────────────────────────────
-test('@deep IMP-001 — Upload empty zip returns 400/422', async ({ page, request }) => {
+// â”€â”€ Empty file â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep IMP-001 â€” Upload empty zip returns 400/422', async ({ page }) => {
   const nonce = await getNonce(page);
-  const res   = await uploadBuffer(request, nonce, Buffer.alloc(0), 'empty.zip');
+  const res   = await uploadBuffer(page, nonce, Buffer.alloc(0), 'empty.zip');
   expect([400, 422]).toContain(res.status());
 });
 
-// ── Truncated zip ────────────────────────────────────────────────────────────
-test('@deep IMP-002 — Upload truncated zip rejected by importer run', async ({ page, request }) => {
+// â”€â”€ Truncated zip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep IMP-002 â€” Upload truncated zip rejected by importer run', async ({ page }) => {
   const nonce = await getNonce(page);
   // Random garbage that's not a valid zip
   const garbage = Buffer.from('PK\x03\x04this-is-not-a-real-zip-signature-just-garbage');
-  const upload  = await uploadBuffer(request, nonce, garbage, 'truncated.zip');
+  const upload  = await uploadBuffer(page, nonce, garbage, 'truncated.zip');
 
   // Either upload itself rejects OR run rejects
   if (upload.status() === 200) {
     const fileId = (await upload.json()).data?.file_id as string;
-    const runRes = await apiPost(request, nonce, '/backup/importer', { file_id: fileId });
+    const runRes = await apiPost(page, nonce, '/backup/importer', { file_id: fileId });
     expect([200, 400, 422]).toContain(runRes.status());
     if (runRes.status() === 200) {
       // Check the imported entry status
@@ -62,8 +62,8 @@ test('@deep IMP-002 — Upload truncated zip rejected by importer run', async ({
   }
 });
 
-// ── Non-NexterBackup zip ─────────────────────────────────────────────────────
-test('@deep IMP-003 — Upload generic zip without NB manifest is recognized or fails gracefully', async ({ page, request }) => {
+// â”€â”€ Non-NexterBackup zip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep IMP-003 â€” Upload generic zip without NB manifest is recognized or fails gracefully', async ({ page }) => {
   const nonce = await getNonce(page);
 
   // Build a minimal valid zip with one text file
@@ -74,46 +74,46 @@ test('@deep IMP-003 — Upload generic zip without NB manifest is recognized or 
     Buffer.alloc(18, 0),
   ]);
 
-  const upload = await uploadBuffer(request, nonce, fakeZip, 'no-manifest.zip');
+  const upload = await uploadBuffer(page, nonce, fakeZip, 'no-manifest.zip');
   if (upload.status() === 200) {
     const fileId = (await upload.json()).data?.file_id as string;
-    const runRes = await apiPost(request, nonce, '/backup/importer', { file_id: fileId });
-    // No manifest → either rejected or imported as "unknown"
+    const runRes = await apiPost(page, nonce, '/backup/importer', { file_id: fileId });
+    // No manifest â†’ either rejected or imported as "unknown"
     expect([200, 400, 422]).toContain(runRes.status());
   } else {
     expect([400, 422]).toContain(upload.status());
   }
 });
 
-// ── Wrong manifest version ───────────────────────────────────────────────────
-test('@deep IMP-004 — Manifest with future schema version surfaces compatibility warning', async ({ page, request }) => {
+// â”€â”€ Wrong manifest version â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep IMP-004 â€” Manifest with future schema version surfaces compatibility warning', async ({ page }) => {
   test.skip(
     !fs.existsSync(path.join(FIX, 'wrong-version-manifest.zip')),
     'Set up fixtures/wrong-version-manifest.zip with manifest.schema_version=999',
   );
 });
 
-// ── Encrypted zip without passphrase ─────────────────────────────────────────
-test('@deep IMP-005 — Encrypted .enc file imported via Importer requires passphrase to restore', async ({ page, request }) => {
+// â”€â”€ Encrypted zip without passphrase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep IMP-005 â€” Encrypted .enc file imported via Importer requires passphrase to restore', async ({ page }) => {
   test.skip(
     !fs.existsSync(path.join(FIX, 'encrypted-backup.zip.enc')),
     'Set up fixtures/encrypted-backup.zip.enc',
   );
 });
 
-// ── Importer upload over WP upload_max_filesize ──────────────────────────────
-test('@deep IMP-006 — Upload larger than WP upload_max_filesize rejected', async ({ page, request }) => {
+// â”€â”€ Importer upload over WP upload_max_filesize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep IMP-006 â€” Upload larger than WP upload_max_filesize rejected', async ({ page }) => {
   test.skip(
     !process.env.UPLOAD_MAX_TEST_FIXTURE,
     'Set UPLOAD_MAX_TEST_FIXTURE=1 with a fixture > upload_max_filesize',
   );
 });
 
-// ── Successful import flow shape ─────────────────────────────────────────────
-test('@deep IMP-007 — Successful import surfaces a record with tagged=true (not pruned by retention)', async ({ page, request }) => {
+// â”€â”€ Successful import flow shape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+test('@deep IMP-007 â€” Successful import surfaces a record with tagged=true (not pruned by retention)', async ({ page }) => {
   test.skip(
     !fs.existsSync(path.join(FIX, 'valid-backup.zip')),
-    'Set up fixtures/valid-backup.zip — copy a real backup zip from the plugin',
+    'Set up fixtures/valid-backup.zip â€” copy a real backup zip from the plugin',
   );
 
   const nonce  = await getNonce(page);
@@ -123,6 +123,6 @@ test('@deep IMP-007 — Successful import surfaces a record with tagged=true (no
     'valid.zip',
   );
   const fileId = (await upload.json()).data?.file_id as string;
-  const runRes = await apiPost(request, nonce, '/backup/importer', { file_id: fileId });
+  const runRes = await apiPost(page, nonce, '/backup/importer', { file_id: fileId });
   expect(runRes.status()).toBe(200);
 });
