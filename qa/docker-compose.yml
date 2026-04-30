@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 12
+
+  wordpress:
+    image: wordpress:6.6-php8.2-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8889:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        define('NXT_BACKUP_TESTING', true);
+    volumes:
+      - wp_data:/var/www/html
+      - ./fixtures:/fixtures:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/wp-admin/install.php"]
+      interval: 5s
+      retries: 24
+
+  sftp:
+    image: atmoz/sftp:latest
+    ports:
+      - "2222:22"
+    command: testuser:testpass:::upload
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      retries: 12
+
+volumes:
+  wp_data:

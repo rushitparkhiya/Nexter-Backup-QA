@@ -1,0 +1,19 @@
+{
+  "name": "nexterbackup-qa",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test":      "playwright test",
+    "test:p0":   "playwright test --grep '@P0'",
+    "test:p1":   "playwright test --grep '@P1'",
+    "test:p2":   "playwright test --grep '@P2'",
+    "test:p3":   "playwright test --grep '@P3'",
+    "test:ui":   "playwright test --ui",
+    "report":    "playwright show-report ../reports/playwright"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@axe-core/playwright": "^4.9.0",
+    "dotenv": "^16.4.5"
+  }
+}
