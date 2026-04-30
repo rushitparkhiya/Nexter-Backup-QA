@@ -101,9 +101,31 @@ npx playwright test --grep '@P0'            # Smoke only
 
 ## Counts
 
-- Dossier baseline: **55 tests** across 14 spec files
-- Deep QA: **~110 tests** across 17 spec files
-- **Total: ~165 tests**
+| Layer | Specs | Tests |
+|-------|------:|------:|
+| Dossier baseline (`@P0..@P3`) | 14 | 55 |
+| Deep QA round 1 (`@deep`)     | 17 | ~110 |
+| Deep QA round 2 (`@deep`)     | 14 | ~150 |
+| **Grand total**               | **45** | **~315** |
+
+### Round 2 spec files
+- `06-http-protocol.spec.ts`     HTTP-001..015 — malformed JSON, wrong Content-Type, HEAD, headers, charset
+- `07-auth-edge.spec.ts`         AUTH-001..008 — App Password, multi-session, tampered cookie, stale nonce
+- `08-idempotency.spec.ts`       IDEM-001..006 + STATE-001..003 — repeat ops, state-machine transitions
+- `09-fuzz.spec.ts`              FUZZ-001..008 — random / weird inputs to settings / labels / configs
+- `10-performance.spec.ts`       PERF-001..015 — latency budgets, throughput, N+1 detection, bundle size
+- `11-rest-shape.spec.ts`        SHAPE-001..014 — response contract verification per endpoint
+- `12-resilience.spec.ts`        RES-001..008 — stale lock, watchdog, race, restore-missing-source
+- `38-archive-integrity.spec.ts` ARCH-001..008 — manifest, sha256 verification, magic bytes
+- `43-notifications.spec.ts`     NOT-001..008 — email triggers, throttling, attachments
+- `44-auto-backup.spec.ts`       AB-001..005 — on plugin/theme/core update, cooldown
+- `45-lock-admin.spec.ts`        LA-001..006 — lock password set/verify/clear, brute-force rate-limit
+- `56-s3-deep.spec.ts`           S3-001..009 — region, prefix, wrong bucket, redaction
+- `57-sftp-deep.spec.ts`         SFTP-001..009 — password/key auth, port, wrong host, redaction
+- `58-local-storage.spec.ts`     LS-001..007 — storage_dir, traversal, custom subdir
+- `87-time-clock.spec.ts`        TIME-001..009 — DST, starttime, timestamps, cron sanity
+- `92-fuzz-security.spec.ts`     SECF-001..008 — SSRF (15 URLs), polyglot, header injection, prototype
+- `98-error-recovery.spec.ts`    ERR-001..006 — failure UX, log fetchable, no 0-byte archives
 
 ## Running with Docker
 
